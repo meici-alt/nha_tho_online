@@ -182,6 +182,8 @@ cite{display:block;font-family:var(--body);font-style:normal;font-size:12.5px;co
 </template>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.12.2/firebase-app-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.12.2/firebase-database-compat.js"></script>
 <script>
 (() => {
 const $ = id => document.getElementById(id);
@@ -195,6 +197,17 @@ let toastT;
 function toast(m) { const el = $('toast'); el.textContent = m; el.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => el.hidden = true, 2400); }
 const rnd = (a, b) => a + Math.random() * (b - a);
 const pick = a => a[(Math.random() * a.length) | 0];
+// Shared church: paste the Firebase web config here. null = everyone plays alone.
+const FIREBASE_CONFIG = {
+  apiKey: 'AIzaSyDCLBp4F_03RAPAaRfxTJM-Xakp5OStC6k',
+  authDomain: 'nha-tho-online.firebaseapp.com',
+  databaseURL: 'https://nha-tho-online-default-rtdb.asia-southeast1.firebasedatabase.app',
+  projectId: 'nha-tho-online',
+  storageBucket: 'nha-tho-online.firebasestorage.app',
+  messagingSenderId: '589974057472',
+  appId: '1:589974057472:web:0f406535b2a7eae3ff1ee5',
+};
+let net = null;
 
 /* ================= content ================= */
 const VERSES = [
@@ -385,6 +398,7 @@ function makeAvatar({ dress, veil, name, hair = '#2b1d16', priest = false }) {
   return { g, body, armL, armR, head, bubble: null, bubbleT: 0 };
 }
 function say(av, text) {
+  if (net && av === player) net.say(text);
   if (av.bubble) { av.g.remove(av.bubble); av.bubble.material.map.dispose(); }
   av.bubble = makeLabel(text, true); av.bubble.position.y = 2.85; av.g.add(av.bubble); av.bubbleT = 4;
 }
@@ -876,11 +890,11 @@ function openSheet(type, arg) {
     }
   }
   if (type === 'candle') {
-    const upd = () => $('myCandles').textContent = me.candles ? `Bạn đã thắp ${me.candles} ngọn nến.` : 'Nến của bạn sẽ cháy cùng nến của mọi người.';
+    const upd = () => $('myCandles').textContent = (me.candles ? `Bạn đã thắp ${me.candles} ngọn nến.` : 'Nến của bạn sẽ cháy cùng nến của mọi người.') + (net.on ? ` Cả nhà thờ đã thắp ${net.candles.toLocaleString('vi-VN')} ngọn.` : '');
     upd();
     $('lightBtn').addEventListener('click', () => {
       const text = $('intent').value.trim().replace(/\s+/g, ' ').slice(0, 60);
-      me.candles++; store.set('nto3-me', me); lightCandle(arg); chime(); upd();
+      me.candles++; store.set('nto3-me', me); lightCandle(arg); net.candle(); chime(); upd();
       say(player, text || 'Xin Chúa ban bình an'); $('intent').value = '';
       toast('Nến đã được thắp'); setTimeout(closeSheet, 700);
     });
@@ -984,10 +998,81 @@ $('chatbox').addEventListener('submit', e => {
   if (v && /amen|chúa|bình an|xin chào|chào/i.test(v)) { const b = bots.slice().sort((a, c) => Math.hypot(a.x - P.x, a.z - P.z) - Math.hypot(c.x - P.x, c.z - P.z))[0]; setTimeout(() => say(b.av, /chào/i.test(v) ? 'Chào bạn, bình an của Chúa' : 'Amen'), 900); }
 });
 
+/* ================= multiplayer (Firebase Realtime Database) ================= */
+// church/players/<pid>: {n, d, v, x, z, h, k, s, st, t}; church/candles: total lit by everyone
+net = (() => {
+  const remotes = new Map();
+  let db = null, meRef = null, sendT = 0, beat = 0, last = '', pendingOwn = 0, seen = null, total = 0;
+  let pid = store.get('nto3-pid', null);
+  if (!pid) { pid = 'p' + Math.random().toString(36).slice(2, 10); store.set('nto3-pid', pid); }
+  const ok = !!(FIREBASE_CONFIG && window.firebase && firebase.database);
+  const TS = () => firebase.database.ServerValue.TIMESTAMP;
+  function setOnline() { $('online').textContent = meRef ? `${remotes.size + 1} người thật · ${bots.length + 1} ảo` : `${bots.length + 2} người`; }
+  function upsert(snap) {
+    const id = snap.key, v = snap.val();
+    if (id === pid || !v || typeof v.x !== 'number' || typeof v.z !== 'number') return;
+    if (v.t && Date.now() - v.t > 120000) return;
+    const name = String(v.n || 'Giáo dân').slice(0, 18), dress = DRESSES[v.d | 0] ? v.d | 0 : 0, veil = (VEILS.find(q => q.id === v.v) || VEILS[0]).c;
+    const key = name + '|' + dress + '|' + veil;
+    let r = remotes.get(id);
+    if (!r || r.key !== key) {
+      if (r) scene.remove(r.av.g);
+      r = { av: makeAvatar({ name, dress: DRESSES[dress].c, veil }), key, x: v.x, z: v.z, h: v.h || 0, st: v.st || 0 };
+      remotes.set(id, r); scene.add(r.av.g);
+    }
+    r.tx = Math.max(-11.5, Math.min(11.5, v.x)); r.tz = Math.max(-31.3, Math.min(31.2, v.z)); r.th = +v.h || 0; r.k = !!v.k;
+    if (v.s && v.st && v.st !== r.st) { r.st = v.st; say(r.av, String(v.s).slice(0, 60)); }
+    setOnline();
+  }
+  function drop(snap) { const r = remotes.get(snap.key); if (r) { scene.remove(r.av.g); remotes.delete(snap.key); setOnline(); } }
+  return {
+    get on() { return !!meRef; },
+    get candles() { return total; },
+    join() {
+      if (ok) try {
+        if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+        db = firebase.database(); meRef = db.ref('church/players/' + pid);
+        const state = () => ({ n: look.name, d: look.dress, v: look.veil, x: +P.x.toFixed(2), z: +P.z.toFixed(2), h: +P.heading.toFixed(2), k: P.kneel ? 1 : 0, t: TS() });
+        db.ref('.info/connected').on('value', s => { if (s.val()) { meRef.onDisconnect().remove(); meRef.set(state()); } });
+        const pl = db.ref('church/players');
+        pl.on('child_added', upsert); pl.on('child_changed', upsert); pl.on('child_removed', drop);
+        db.ref('church/candles').on('value', s => {
+          const n = s.val() | 0; total = n;
+          if (seen === null) { seen = n; return; }
+          let delta = n - seen; seen = n;
+          const own = Math.min(delta, pendingOwn); pendingOwn -= own; delta -= own;
+          for (let i = 0; i < Math.min(delta, 5); i++) lightCandle(null);
+        });
+        toast('Đã vào nhà thờ chung, bạn bè vào cùng link sẽ thấy nhau');
+      } catch (e) { meRef = null; toast('Chưa kết nối được nhà thờ chung, bạn đang chơi một mình'); }
+      setOnline();
+    },
+    candle() { if (!db) return; pendingOwn++; db.ref('church/candles').transaction(c => (c || 0) + 1); },
+    say(text) { if (meRef) meRef.update({ s: String(text).slice(0, 60), st: Date.now() }); },
+    tick(dt, t) {
+      for (const r of remotes.values()) {
+        const dx = r.tx - r.x, dz = r.tz - r.z, d = Math.hypot(dx, dz);
+        if (d > 6) { r.x = r.tx; r.z = r.tz; } else { const k = Math.min(1, dt * 8); r.x += dx * k; r.z += dz * k; }
+        r.h += angDiff(r.th, r.h) * Math.min(1, dt * 10);
+        pose(r.av, dt, t, d > .05, r.k, 0);
+        r.av.g.position.set(r.x, groundY(r.x, r.z), r.z); r.av.g.rotation.y = r.h;
+      }
+      if (!meRef || !player) return;
+      sendT += dt; beat += dt;
+      if (sendT < .15) return; sendT = 0;
+      const sig = P.x.toFixed(2) + P.z.toFixed(2) + P.heading.toFixed(1) + P.kneel;
+      if (sig === last && beat < 20) return;
+      last = sig; beat = 0;
+      meRef.update({ x: +P.x.toFixed(2), z: +P.z.toFixed(2), h: +P.heading.toFixed(2), k: P.kneel ? 1 : 0, t: TS() });
+    },
+  };
+})();
+
 /* ================= start ================= */
 $('enter').addEventListener('click', () => {
   look.name = ($('nameIn').value.trim() || 'Giáo dân').slice(0, 18); store.set('nto3-look', look);
-  player = makeAvatar(lookOpts()); scene.add(player.g);
+  P.x = rnd(-1.2, 1.2); P.z = rnd(26.5, 28.5);   // spread arrivals so players don't stack
+  player = makeAvatar(lookOpts()); scene.add(player.g); net.join();
   $('start').hidden = true; started = true; audio(); bellSound(); setTimeout(() => bellSound(174), 1600);
   if (!musicOn) toggleMusic();
   setTimeout(() => say(bots[0].av, 'Chào ' + look.name + '!'), 2500);
@@ -1023,6 +1108,7 @@ function frame(now) {
     refreshAct();
   }
   bots.forEach(b => updateBot(b, dt, t));
+  net.tick(dt, t);
   // flames
   const nowMs = performance.now();
   for (const s of flames) if (s.lit) {
