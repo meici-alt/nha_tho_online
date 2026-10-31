@@ -1,0 +1,1059 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body><title>Nhà Thờ Online</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;0,700;1,500&family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: full-screen 3D nave; a room chip on top, joystick bottom-left, actions bottom-right; devotions open in a bottom sheet. Single dark, candle-lit look by design. */
+:root{
+  --nave:#120d14;
+  --sheet:#1d1520;
+  --ink:#f3e9d6;
+  --muted:#b5a79a;
+  --gold:#e3b75a;
+  --line:rgba(227,183,90,.25);
+  --glass:rgba(18,13,20,.62);
+  --display:'Cormorant Garamond','Palatino Linotype',Georgia,serif;
+  --body:'Be Vietnam Pro',system-ui,-apple-system,'Segoe UI',sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--nave);color:var(--ink);font-family:var(--body);font-size:15px;overflow:hidden;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+#stage{position:fixed;inset:0;touch-action:none}
+#stage canvas{display:block;width:100%;height:100%}
+
+.top{position:fixed;top:calc(env(safe-area-inset-top,0px) + 12px);left:0;right:0;display:flex;justify-content:center;pointer-events:none;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.room{pointer-events:auto;display:flex;align-items:center;gap:10px;background:var(--glass);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:7px 8px 7px 16px;font-family:var(--display);font-size:20px;font-weight:600;white-space:nowrap}
+.room .on{font-family:var(--body);font-size:12.5px;font-weight:600;color:#9be3b5;display:flex;align-items:center;gap:5px;font-variant-numeric:tabular-nums}
+.room .on::before{content:"";width:7px;height:7px;border-radius:50%;background:#62c48a;box-shadow:0 0 8px #62c48a}
+.iconbtn{pointer-events:auto;width:34px;height:34px;border-radius:50%;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:var(--ink);font:inherit;font-size:14px;cursor:pointer;display:grid;place-items:center}
+.iconbtn svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.8}
+
+#joy{position:fixed;left:max(20px,env(safe-area-inset-left,0px) + 12px);bottom:calc(env(safe-area-inset-bottom,0px) + 24px);width:130px;height:130px;border-radius:50%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);touch-action:none}
+#knob{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;background:rgba(243,233,214,.25);border:1px solid rgba(243,233,214,.4)}
+.acts{position:fixed;right:max(16px,env(safe-area-inset-right,0px) + 8px);bottom:calc(env(safe-area-inset-bottom,0px) + 24px);display:grid;gap:10px;justify-items:end}
+.pill{font:inherit;font-weight:600;font-size:14px;border-radius:999px;padding:11px 18px;cursor:pointer;border:1px solid rgba(255,255,255,.16);background:var(--glass);backdrop-filter:blur(8px);color:var(--ink);display:flex;align-items:center;gap:8px}
+.pill svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8}
+.pill.main{background:var(--gold);border-color:var(--gold);color:#241a08;font-size:15.5px;padding:13px 22px;box-shadow:0 6px 24px rgba(227,183,90,.35)}
+.pill kbd{font:inherit;font-size:11px;border:1px solid rgba(0,0,0,.3);border-radius:4px;padding:0 5px}
+.row{display:flex;gap:8px}
+#chatbox{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 170px);width:min(420px,calc(100% - 32px));display:flex;gap:8px}
+#chatbox input{flex:1;min-width:0;font:inherit;color:var(--ink);background:rgba(18,13,20,.85);border:1px solid var(--line);border-radius:999px;padding:10px 16px}
+.hint{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 62px);font-size:12.5px;color:var(--muted);background:var(--glass);padding:5px 12px;border-radius:999px;pointer-events:none;text-align:center;max-width:calc(100% - 32px)}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+
+/* start screen */
+.start{position:fixed;inset:0;display:grid;place-items:center;padding:16px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));background:radial-gradient(80% 60% at 50% 30%,rgba(60,35,30,.55),rgba(12,8,14,.94));overflow:auto;z-index:5}
+.card{width:100%;max-width:400px;background:var(--sheet);border:1px solid var(--line);border-radius:18px;padding:22px;display:grid;gap:16px}
+h1{font-family:var(--display);font-weight:700;font-size:44px;line-height:.95;margin:0;text-wrap:balance}
+h1 em{color:var(--gold);font-weight:500}
+.card p{margin:0;color:var(--muted);line-height:1.5;font-size:14px}
+.lbl{display:block;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+input[type=text],textarea{width:100%;font:inherit;color:var(--ink);background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.14);border-radius:10px;padding:10px 12px;resize:vertical;-webkit-user-select:text;user-select:text}
+.opts{display:flex;gap:8px;flex-wrap:wrap}
+.opt{font:inherit;font-size:13px;color:var(--ink);background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.14);border-radius:999px;padding:6px 12px 6px 6px;cursor:pointer;display:flex;align-items:center;gap:7px}
+.opt i{width:20px;height:20px;border-radius:50%;display:block;border:1px solid rgba(255,255,255,.3)}
+.opt[aria-pressed=true]{border-color:var(--gold);background:rgba(227,183,90,.14)}
+#preview{width:100%;height:170px;border-radius:12px;background:radial-gradient(circle at 50% 70%,#3a2620,#1a1118);display:block}
+.btn{font:inherit;font-weight:700;font-size:15px;border-radius:999px;padding:12px 22px;cursor:pointer;border:1px solid var(--gold);background:var(--gold);color:#241a08}
+.btn.ghost{background:transparent;color:var(--gold)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+/* devotion sheet */
+.sheet-wrap{position:fixed;inset:0;display:flex;align-items:flex-end;justify-content:center;background:rgba(8,5,10,.35);z-index:4;padding-left:max(0px,env(safe-area-inset-left,0px));padding-right:max(0px,env(safe-area-inset-right,0px))}
+.sheet{width:100%;max-width:560px;max-height:78%;overflow:auto;background:var(--sheet);border:1px solid var(--line);border-bottom:0;border-radius:18px 18px 0 0;padding:20px 20px calc(env(safe-area-inset-bottom,0px) + 20px);display:grid;gap:14px;-webkit-user-select:text;user-select:text}
+.sheet h2{font-family:var(--display);font-size:30px;font-weight:700;margin:0;color:var(--gold);line-height:1.05}
+.sheet p{margin:0;color:var(--muted);line-height:1.55}
+.sheet-head{display:flex;justify-content:space-between;align-items:start;gap:12px}
+.prayer{font-family:var(--display);font-size:21px;line-height:1.45;color:var(--ink)}
+.chip{font:inherit;font-size:13px;padding:6px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:transparent;color:var(--muted);cursor:pointer}
+.chip[aria-pressed=true]{border-color:var(--gold);color:var(--gold)}
+.note{font-size:12.5px;color:var(--muted);border-left:2px solid var(--line);padding-left:10px}
+.booth{border-radius:12px;padding:14px;background:repeating-linear-gradient(45deg,rgba(227,183,90,.08) 0 2px,transparent 2px 14px),repeating-linear-gradient(-45deg,rgba(227,183,90,.08) 0 2px,transparent 2px 14px),#17101a;border:1px solid var(--line);display:grid;gap:12px}
+.burn{animation:burn 1.6s ease-in forwards}
+.pchat{display:grid;gap:8px;max-height:38vh;overflow:auto;padding:2px}
+.msg{max-width:85%;padding:9px 13px;border-radius:14px;line-height:1.45;font-size:14.5px;overflow-wrap:anywhere}
+.msg.priest{justify-self:start;background:#2a2030;border:1px solid var(--line);border-bottom-left-radius:4px}
+.msg.priest::before{content:"Cha Phaolô";display:block;font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--gold);margin-bottom:2px}
+.msg.me{justify-self:end;background:var(--gold);color:#241a08;border-bottom-right-radius:4px}
+.msg.typing{opacity:.6;font-style:italic}
+#pform input{flex:1;min-width:0}
+.places{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.places button{font:inherit;text-align:left;color:var(--ink);background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:12px 14px;cursor:pointer;display:grid;gap:2px}
+.places button b{font-weight:600}
+.places button span{font-size:12px;color:var(--muted)}
+.places button:first-child{border-color:var(--gold);background:rgba(227,183,90,.12)}
+@keyframes burn{40%{color:#ffb85c;text-shadow:0 0 12px #ff8a2a}100%{opacity:0;filter:blur(6px);transform:translateY(-14px)}}
+blockquote{margin:0;font-family:var(--display);font-size:23px;line-height:1.38;font-style:italic;color:var(--ink)}
+cite{display:block;font-family:var(--body);font-style:normal;font-size:12.5px;color:var(--gold);margin-top:6px}
+.verse-card{border-radius:14px;padding:22px;background:linear-gradient(180deg,#f3e9d6,#e6d6b8);color:#2b1d12;text-align:center;animation:rise .6s cubic-bezier(.2,.7,.2,1)}
+.verse-card blockquote{color:#2b1d12;font-style:normal;font-weight:600}
+.verse-card cite{color:#7a5520}
+@keyframes rise{from{opacity:0;transform:translateY(16px) rotateX(30deg)}}
+#toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 64px);transform:translateX(-50%);background:var(--ink);color:var(--nave);font-weight:600;font-size:13.5px;padding:8px 16px;border-radius:999px;z-index:6;max-width:calc(100% - 32px);text-align:center}
+.err{position:fixed;inset:0;display:grid;place-items:center;padding:24px;text-align:center;color:var(--muted)}
+@media (max-width:520px){
+  .room{font-size:17px;padding-left:12px}
+  #joy{width:116px;height:116px}
+  .pill{padding:10px 14px;font-size:13px}
+  .pill .lbl-long{display:none}
+}
+@media (hover:hover) and (pointer:fine){ #joy{display:none} }
+@media (prefers-reduced-motion:reduce){.burn,.verse-card{animation-duration:.01s}}
+</style>
+
+<div id="stage"></div>
+
+<div class="top">
+  <div class="room">
+    <span>Nhà Thờ Thánh Giuse</span>
+    <span class="on" id="online">1</span>
+    <button class="iconbtn" id="music" aria-label="Bật hoặc tắt nhạc nền" title="Nhạc nền">♪</button>
+  </div>
+</div>
+<div class="hint" id="hint">Bấm "Đi tới" để tới tòa giải tội gặp cha xứ, bàn thờ, giá nến… · kéo màn hình để xoay camera</div>
+
+<div id="joy" aria-hidden="true"><div id="knob"></div></div>
+<div class="acts">
+  <button class="pill main" id="act" hidden></button>
+  <div class="row">
+    <button class="pill" id="kneelBtn"><svg viewBox="0 0 24 24"><path d="M12 3v6M9 6h6M8 21l2-7h4l2 7"/></svg><span>Quỳ</span></button>
+    <button class="pill" id="mapBtn"><svg viewBox="0 0 24 24"><path d="M12 21s-6-5.5-6-11a6 6 0 0 1 12 0c0 5.5-6 11-6 11z"/><circle cx="12" cy="10" r="2"/></svg><span>Đi tới</span></button>
+    <button class="pill" id="chatBtn"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg><span>Nói</span></button>
+  </div>
+</div>
+<form id="chatbox" hidden><input id="chatIn" type="text" maxlength="60" placeholder="Nói gì đó… (Enter để gửi)" autocomplete="off"><button class="btn" type="submit">Gửi</button></form>
+<div id="toast" hidden></div>
+
+<!-- start -->
+<div class="start" id="start">
+  <div class="card">
+    <h1>Nhà Thờ <em>Online</em></h1>
+    <p>Bước vào nhà thờ, thắp nến, quỳ cầu nguyện, xưng tội và rút Lời Chúa cùng các giáo dân khác.</p>
+    <canvas id="preview" aria-label="Xem trước nhân vật"></canvas>
+    <div><label class="lbl" for="nameIn">Tên thánh và tên</label><input type="text" id="nameIn" maxlength="18" value="Maria An" autocomplete="off"></div>
+    <div><span class="lbl">Khăn ren</span><div class="opts" id="veils"></div></div>
+    <div><span class="lbl">Trang phục</span><div class="opts" id="dresses"></div></div>
+    <button class="btn" id="enter">Vào nhà thờ</button>
+    <p class="note">Máy tính: W A S D hoặc phím mũi tên để đi, E để tương tác. Điện thoại: dùng cần điều khiển bên trái.</p>
+  </div>
+</div>
+
+<!-- devotion sheet -->
+<div class="sheet-wrap" id="sheetWrap" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <div class="sheet-head"><h2 id="sheetTitle"></h2><button class="iconbtn" id="sheetClose" aria-label="Đóng"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div id="sheetBody" style="display:grid;gap:14px"></div>
+  </div>
+</div>
+
+<template id="tpl-candle">
+  <p>Ghi ý nguyện của bạn rồi thắp nến. Ngọn nến sẽ cháy trên giá nến trong nhà thờ.</p>
+  <textarea id="intent" rows="2" maxlength="100" placeholder="Xin cho gia đình con được bình an…"></textarea>
+  <div class="row" style="align-items:center;flex-wrap:wrap"><button class="btn" id="lightBtn">Thắp nến</button><span class="note" id="myCandles"></span></div>
+</template>
+<template id="tpl-pray">
+  <div class="row" id="prayerPick" style="flex-wrap:wrap"></div>
+  <p class="prayer" id="prayerText"></p>
+  <div class="row" style="align-items:center;flex-wrap:wrap"><button class="btn" id="amenBtn">Amen</button><span class="note" id="myPrayers"></span></div>
+</template>
+<template id="tpl-confess">
+  <div class="pchat" id="pchat" aria-live="polite"></div>
+  <form id="pform" class="row"><input id="pin" type="text" maxlength="300" placeholder="Thưa cha, con đã…" autocomplete="off"><button class="btn" type="submit">Thưa</button></form>
+  <div class="row" style="flex-wrap:wrap"><button class="chip" id="pdone" type="button">Con hết tội rồi ạ</button><button class="btn ghost" id="pact" type="button" hidden>Đọc Kinh Ăn Năn Tội</button></div>
+  <p class="note">Cha xứ ở đây là nhân vật ảo, lời khuyên được soạn sẵn theo từ khóa. Những gì bạn viết không được lưu và không gửi đi đâu. Bí tích Hòa Giải cần được cử hành với linh mục thật tại nhà thờ.</p>
+</template>
+<template id="tpl-map">
+  <p>Chọn nơi muốn tới, nhân vật của bạn sẽ đi thẳng tới đó.</p>
+  <div class="places" id="places"></div>
+</template>
+<template id="tpl-verse">
+  <p>Lặng yên một chút, nghĩ về điều bạn đang mang trong lòng.</p>
+  <div id="verseSlot"></div>
+  <div><button class="btn" id="drawBtn">Rút Lời Chúa</button></div>
+</template>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+const $ = id => document.getElementById(id);
+if (!window.THREE) { document.body.insertAdjacentHTML('beforeend', '<div class="err">Không tải được thư viện 3D. Kiểm tra kết nối mạng rồi tải lại trang.</div>'); return; }
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
+let toastT;
+function toast(m) { const el = $('toast'); el.textContent = m; el.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => el.hidden = true, 2400); }
+const rnd = (a, b) => a + Math.random() * (b - a);
+const pick = a => a[(Math.random() * a.length) | 0];
+
+/* ================= content ================= */
+const VERSES = [
+  ['Vì Đức Chúa Trời yêu thương thế gian, đến nỗi đã ban Con một của Ngài, hầu cho hễ ai tin Con ấy không bị hư mất mà được sự sống đời đời.', 'Giăng 3:16'],
+  ['Hỡi những kẻ mệt mỏi và gánh nặng, hãy đến cùng ta, ta sẽ cho các ngươi được yên nghỉ.', 'Ma-thi-ơ 11:28'],
+  ['Đức Giê-hô-va là Đấng chăn giữ tôi; tôi sẽ chẳng thiếu thốn gì.', 'Thi Thiên 23:1'],
+  ['Hãy xin, sẽ ban cho; hãy tìm, sẽ gặp; hãy gõ cửa, sẽ mở cho.', 'Ma-thi-ơ 7:7'],
+  ['Tôi làm được mọi sự nhờ Đấng ban thêm sức cho tôi.', 'Phi-líp 4:13'],
+  ['Đừng sợ, vì ta ở với ngươi; chớ kinh khiếp, vì ta là Đức Chúa Trời ngươi!', 'Ê-sai 41:10'],
+  ['Đức Chúa Trời là nơi nương náu và sức lực của chúng tôi, Ngài sẵn giúp đỡ trong cơn gian truân.', 'Thi Thiên 46:1'],
+  ['Vả, chúng ta biết rằng mọi sự hiệp lại làm ích cho kẻ yêu mến Đức Chúa Trời.', 'Rô-ma 8:28'],
+  ['Tình yêu thương hay nhịn nhục; tình yêu thương hay nhân từ.', '1 Cô-rinh-tô 13:4'],
+  ['Phước cho những kẻ có lòng trong sạch, vì sẽ thấy Đức Chúa Trời!', 'Ma-thi-ơ 5:8'],
+  ['Lời Chúa là ngọn đèn cho chân tôi, ánh sáng cho đường lối tôi.', 'Thi Thiên 119:105'],
+];
+const PRAYERS = {
+  'Lạy Cha': 'Lạy Cha chúng con ở trên trời, chúng con nguyện danh Cha cả sáng, nước Cha trị đến, ý Cha thể hiện dưới đất cũng như trên trời. Xin Cha cho chúng con hôm nay lương thực hằng ngày, và tha nợ chúng con như chúng con cũng tha kẻ có nợ chúng con. Xin chớ để chúng con sa chước cám dỗ, nhưng cứu chúng con cho khỏi sự dữ. Amen.',
+  'Kính Mừng': 'Kính mừng Maria đầy ơn phúc, Đức Chúa Trời ở cùng Bà, Bà có phúc lạ hơn mọi người nữ, và Giêsu con lòng Bà gồm phúc lạ. Thánh Maria Đức Mẹ Chúa Trời, cầu cho chúng con là kẻ có tội, khi nay và trong giờ lâm tử. Amen.',
+  'Sáng Danh': 'Sáng danh Đức Chúa Cha, và Đức Chúa Con, và Đức Chúa Thánh Thần. Như đã có trước vô cùng và bây giờ và hằng có và đời đời chẳng cùng. Amen.',
+};
+const PENANCE = ['Đọc 1 kinh Lạy Cha và 3 kinh Kính Mừng.', 'Gọi điện hỏi thăm bố mẹ hôm nay.', 'Làm một việc tốt thầm lặng cho người bên cạnh.', 'Xin lỗi một người mà bạn đã làm buồn lòng.', 'Tắt điện thoại 15 phút và lặng yên cầu nguyện.', 'Đọc 1 kinh Sáng Danh và tha thứ cho một người.'];
+const ACT_OF_CONTRITION = 'Lạy Chúa con, Chúa là Đấng trọn tốt trọn lành vô cùng, Chúa đã dựng nên con, và cho Con Chúa ra đời chịu nạn chịu chết vì con, mà con đã cả lòng phản nghịch lỗi nghĩa cùng Chúa, thì con lo buồn đau đớn cùng chê ghét mọi tội con trên hết mọi sự; con dốc lòng chừa cải, và nhờ ơn Chúa thì con sẽ lánh xa dịp tội cùng làm việc đền tội cho xứng. Amen.';
+// the priest answers by keyword; the first match wins
+const COUNSEL = [
+  [/nói dối|xạo|lừa|gian dối/i, 'Sự thật giải phóng chúng ta. Lần sau khi muốn nói dối, con hãy dừng lại một nhịp và chọn nói thật, dù khó.'],
+  [/cha mẹ|bố mẹ|ba mẹ|cãi|hỗn|vô lễ/i, 'Thảo kính cha mẹ là điều răn Chúa dạy. Hôm nay con hãy nói một lời cảm ơn hoặc xin lỗi bố mẹ nhé.'],
+  [/giận|nóng|cáu|chửi|văng tục|bực|nói bậy/i, 'Ai cũng có lúc nóng giận. Trước khi nói, con hãy hít thở và thầm cầu: "Lạy Chúa, xin cho con hiền lành".'],
+  [/bỏ lễ|không đi lễ|ngủ quên|trốn lễ/i, 'Thánh lễ là nơi Chúa chờ con. Con hãy sắp xếp để tham dự lễ Chúa nhật tới thật sớm.'],
+  [/không cầu nguyện|quên đọc kinh|lười đọc kinh/i, 'Cầu nguyện là trò chuyện với Chúa. Mỗi tối con dành năm phút thôi cũng được.'],
+  [/lười|biếng|trễ|deadline|trì hoãn/i, 'Chúa trao cho mỗi người những nén bạc. Con hãy bắt đầu từ một việc nhỏ hôm nay và làm cho trọn.'],
+  [/ghen|đố kỵ|so sánh/i, 'Mỗi người là một hồng ân riêng. Con hãy tạ ơn Chúa về ba điều con đang có.'],
+  [/ăn cắp|trộm|lấy của|ăn gian|gian lận|quay cóp/i, 'Nếu có thể, con hãy trả lại hoặc đền bù điều đã lấy. Lòng thanh thản đáng giá hơn mọi thứ.'],
+  [/ghét|thù|không tha|oán/i, 'Tha thứ không dễ, nhưng là con đường Chúa dạy. Con hãy cầu nguyện cho người ấy, dù chỉ một câu.'],
+  [/điện thoại|game|mạng xã hội|tiktok|facebook|lướt/i, 'Công nghệ là phương tiện tốt nếu ta làm chủ nó. Con thử dành 15 phút mỗi ngày tắt máy và trò chuyện với Chúa.'],
+  [/nhậu|rượu|bia|say/i, 'Thân xác là đền thờ Chúa Thánh Thần. Con hãy tiết độ và giữ gìn sức khỏe.'],
+  [/người yêu|crush|ngoại tình|tình cảm|chia tay/i, 'Tình yêu đẹp khi được xây trên sự tôn trọng và chung thủy. Con hãy cầu nguyện để Chúa soi sáng con.'],
+  [/kiêu|khoe|tự cao|coi thường/i, 'Chúa nâng cao người khiêm nhường. Hôm nay con hãy lắng nghe nhiều hơn và khen người khác một lời.'],
+];
+const GENERIC = ['Cha cảm ơn con đã thành thật. Chúa luôn thương xót những tâm hồn biết ăn năn.', 'Con đừng sợ. Lòng thương xót của Chúa lớn hơn mọi lỗi lầm của chúng ta.', 'Cha đã nghe. Điều quan trọng là con muốn sửa đổi, và Chúa sẽ giúp con.'];
+const BOT_LINES = ['Amen', 'Lạy Chúa thương xót chúng con', 'Xin Chúa ban bình an', 'Tạ ơn Chúa', 'Lạy Mẹ Maria', 'Bình an cho bạn', 'Xin cầu cho gia đình con', 'Lạy Chúa, con cảm tạ Chúa'];
+const VEILS = [{ id: 'trang', name: 'Ren trắng', c: '#ffffff' }, { id: 'den', name: 'Ren đen', c: '#2a2426' }, { id: 'kem', name: 'Ren kem', c: '#ecd9b4' }, { id: 'khong', name: 'Không đội', c: null }];
+const DRESSES = [{ name: 'Xanh Đức Mẹ', c: '#2f4f8f' }, { name: 'Đỏ rượu', c: '#7d2433' }, { name: 'Trắng', c: '#e9e3d6' }, { name: 'Đen', c: '#26222a' }, { name: 'Tím', c: '#5b3f84' }];
+
+let me = store.get('nto3-me', { candles: 0, prayers: 0 });
+let look = store.get('nto3-look', { name: 'Maria An', veil: 'trang', dress: 0 });
+
+/* ================= audio ================= */
+let ac = null, musicOn = false, musicNodes = null;
+function audio() {
+  if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch { ac = null; } }
+  if (ac && ac.state === 'suspended') ac.resume();
+  return ac;
+}
+function partial(f, vol, dur, when = 0, type = 'sine', attack = 0.005) {
+  if (!ac) return;
+  const t = ac.currentTime + when, o = ac.createOscillator(), g = ac.createGain();
+  o.type = type; o.frequency.value = f;
+  g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + attack);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g).connect(ac.destination); o.start(t); o.stop(t + dur + 0.05);
+}
+function bellSound(base = 196) { audio(); [[0.5, .16, 6], [1, .2, 4.5], [1.19, .09, 3.5], [1.5, .07, 3], [2, .07, 2.6], [2.52, .05, 2], [3.01, .04, 1.6]].forEach(([m, v, d]) => partial(base * m, v * .6, d)); }
+function chime() { audio(); [784, 988, 1175].forEach((f, i) => partial(f, .05, 2.2, i * .09, 'sine', .01)); }
+function amenChord() { audio(); [262, 330, 392, 523].forEach(f => partial(f, .05, 2.6, 0, 'triangle', .4)); }
+// a soft organ pad cycling through four chords
+function toggleMusic() {
+  audio(); if (!ac) return;
+  musicOn = !musicOn; $('music').style.color = musicOn ? 'var(--gold)' : '';
+  if (!musicOn) { if (musicNodes) { musicNodes.g.gain.setTargetAtTime(0, ac.currentTime, .4); const n = musicNodes; setTimeout(() => n.oscs.forEach(o => o.stop()), 1500); musicNodes = null; } return; }
+  const g = ac.createGain(); g.gain.value = 0; g.connect(ac.destination);
+  const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900; lp.connect(g);
+  const oscs = [0, 1, 2, 3].map(() => { const o = ac.createOscillator(); o.type = 'triangle'; o.connect(lp); o.start(); return o; });
+  const CH = [[130.8, 196, 261.6, 329.6], [110, 164.8, 220, 261.6], [87.3, 174.6, 220, 261.6], [98, 146.8, 196, 246.9]];
+  let k = 0;
+  const step = () => { if (!musicNodes) return; CH[k % 4].forEach((f, i) => oscs[i].frequency.setTargetAtTime(f, ac.currentTime, .6)); k++; musicNodes.timer = setTimeout(step, 4000); };
+  musicNodes = { g, oscs }; g.gain.setTargetAtTime(.035, ac.currentTime, 1); step();
+}
+$('music').addEventListener('click', toggleMusic);
+
+/* ================= textures ================= */
+function canvasTex(w, h, draw, repeat) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c);
+  if (repeat) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeat[0], repeat[1]); }
+  t.anisotropy = 4; return t;
+}
+const floorTex = canvasTex(256, 256, (g, w) => {
+  g.fillStyle = '#d8d0c3'; g.fillRect(0, 0, w, w);
+  g.fillStyle = '#2f292c'; g.fillRect(0, 0, w / 2, w / 2); g.fillRect(w / 2, w / 2, w / 2, w / 2);
+  // faint marble veins, one gentle curve per tile
+  g.globalAlpha = .06; g.lineWidth = 1.2;
+  for (const [ox, oy, c] of [[0, 0, '#fff'], [w / 2, 0, '#000'], [0, w / 2, '#000'], [w / 2, w / 2, '#fff']]) {
+    g.strokeStyle = c; g.beginPath(); g.moveTo(ox + 10, oy + 20); g.quadraticCurveTo(ox + 60, oy + 70, ox + 118, oy + 96); g.stroke();
+  }
+  g.globalAlpha = .25; g.strokeStyle = '#8a7d6c'; g.lineWidth = 1; g.strokeRect(0, 0, w, w); g.strokeRect(0, 0, w / 2, w / 2); g.strokeRect(w / 2, w / 2, w / 2, w / 2);
+}, [12, 31]);
+const laceTex = canvasTex(128, 128, (g) => {
+  g.fillStyle = 'rgba(255,255,255,.28)'; g.fillRect(0, 0, 128, 128);
+  g.fillStyle = '#fff';
+  for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) {
+    const cx = x * 32 + 16 + (y % 2 ? 16 : 0), cy = y * 32 + 16;
+    for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3; g.beginPath(); g.arc(cx + Math.cos(a) * 7, cy + Math.sin(a) * 7, 3.3, 0, 7); g.fill(); }
+    g.beginPath(); g.arc(cx, cy, 2.6, 0, 7); g.fill();
+  }
+}, [4, 2]);
+function glassTex(seed) {
+  let s = seed; const r = () => (s = (s * 9301 + 49297) % 233280) / 233280;
+  const cols = ['#2f5fb0', '#9c2236', '#e0b04a', '#2d7a58', '#5b3c95', '#c4572e', '#2f5fb0'];
+  return canvasTex(128, 256, (g, w, h) => {
+    for (let y = 0; y < 10; y++) for (let x = 0; x < 4; x++) { g.fillStyle = cols[(r() * cols.length) | 0]; g.fillRect(x * 32, y * 26, 32, 26); }
+    g.fillStyle = 'rgba(255,240,200,.9)'; g.fillRect(58, 70, 12, 120); g.fillRect(34, 100, 60, 12);
+    g.strokeStyle = '#120a0c'; g.lineWidth = 3;
+    for (let x = 1; x < 4; x++) { g.beginPath(); g.moveTo(x * 32, 0); g.lineTo(x * 32, h); g.stroke(); }
+    for (let y = 1; y < 10; y++) { g.beginPath(); g.moveTo(0, y * 26); g.lineTo(w, y * 26); g.stroke(); }
+  });
+}
+const roseTex = canvasTex(256, 256, (g) => {
+  const cols = ['#2f5fb0', '#9c2236', '#e0b04a', '#2d7a58', '#5b3c95', '#c4572e'];
+  g.translate(128, 128);
+  for (let ring = 3; ring >= 1; ring--) for (let i = 0; i < 16; i++) {
+    g.fillStyle = cols[(i + ring * 2) % cols.length]; g.beginPath(); g.moveTo(0, 0);
+    g.arc(0, 0, ring * 42, i * Math.PI / 8, (i + 1) * Math.PI / 8); g.closePath(); g.fill();
+    g.strokeStyle = '#120a0c'; g.lineWidth = 3; g.stroke();
+  }
+  g.fillStyle = '#f2d27a'; g.beginPath(); g.arc(0, 0, 22, 0, 7); g.fill();
+  g.strokeStyle = '#120a0c'; g.lineWidth = 6; g.beginPath(); g.arc(0, 0, 126, 0, 7); g.stroke();
+});
+const glowTex = canvasTex(64, 64, (g) => {
+  const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, 'rgba(255,250,220,1)'); gr.addColorStop(.25, 'rgba(255,200,100,.9)'); gr.addColorStop(1, 'rgba(255,140,40,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+});
+function labelTex(text, bubble) {
+  const c = document.createElement('canvas'), g = c.getContext('2d');
+  const font = bubble ? '500 30px "Be Vietnam Pro",system-ui,sans-serif' : '600 28px "Be Vietnam Pro",system-ui,sans-serif';
+  g.font = font; const w = Math.min(560, Math.ceil(g.measureText(text).width) + 36); c.width = w; c.height = 56;
+  g.font = font; g.fillStyle = bubble ? 'rgba(243,233,214,.95)' : 'rgba(10,6,12,.55)';
+  const r = 26; g.beginPath(); g.moveTo(r, 0); g.arcTo(w, 0, w, 56, r); g.arcTo(w, 56, 0, 56, r); g.arcTo(0, 56, 0, 0, r); g.arcTo(0, 0, w, 0, r); g.fill();
+  g.fillStyle = bubble ? '#241a10' : '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, w / 2, 29, w - 20);
+  const t = new THREE.CanvasTexture(c); return { t, aspect: w / 56 };
+}
+function makeLabel(text, bubble) {
+  const { t, aspect } = labelTex(text, bubble);
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthWrite: false, transparent: true }));
+  const h = bubble ? .42 : .34; s.scale.set(h * aspect, h, 1); s.renderOrder = 10; return s;
+}
+
+/* ================= avatar ================= */
+const skinM = new THREE.MeshStandardMaterial({ color: '#f1c9a5', roughness: .7 });
+const eyeM = new THREE.MeshBasicMaterial({ color: '#1b1214' });
+const blushM = new THREE.MeshBasicMaterial({ color: '#f29a9a', transparent: true, opacity: .55 });
+function makeAvatar({ dress, veil, name, hair = '#2b1d16', priest = false }) {
+  const g = new THREE.Group(), body = new THREE.Group(); g.add(body);
+  const dressM = new THREE.MeshStandardMaterial({ color: dress, roughness: .85 });
+  const skirt = new THREE.Mesh(new THREE.CylinderGeometry(.3, .62, 1.0, 20), dressM); skirt.position.y = .5; body.add(skirt);
+  const collar = new THREE.Mesh(new THREE.CylinderGeometry(.2, .3, .12, 16), dressM); collar.position.y = 1.03; body.add(collar);
+  const arm = () => { const p = new THREE.Group(); const m = new THREE.Mesh(new THREE.CylinderGeometry(.085, .1, .5, 8), dressM); m.position.y = -.25; p.add(m); const h = new THREE.Mesh(new THREE.SphereGeometry(.09, 8, 8), skinM); h.position.y = -.52; p.add(h); return p; };
+  const armL = arm(), armR = arm(); armL.position.set(-.33, .98, 0); armR.position.set(.33, .98, 0); body.add(armL, armR);
+  const head = new THREE.Group(); head.position.y = 1.42; body.add(head);
+  head.add(new THREE.Mesh(new THREE.SphereGeometry(.46, 24, 18), skinM));
+  const hairM = new THREE.MeshStandardMaterial({ color: hair, roughness: .9 });
+  // hair wraps the back and sides, leaving the face (+z, phi = PI/2) open
+  const back = new THREE.Mesh(new THREE.SphereGeometry(.49, 24, 18, Math.PI * .8, Math.PI * 1.4, 0, Math.PI * .62), hairM);
+  head.add(back);
+  const fringe = new THREE.Mesh(new THREE.SphereGeometry(.485, 24, 10, 0, Math.PI * 2, 0, Math.PI * .28), hairM); head.add(fringe);
+  for (const sx of [-1, 1]) {
+    const e = new THREE.Mesh(new THREE.SphereGeometry(.055, 10, 8), eyeM); e.position.set(sx * .16, -.02, .42); e.scale.y = 1.3; head.add(e);
+    const b = new THREE.Mesh(new THREE.CircleGeometry(.06, 12), blushM); b.position.set(sx * .27, -.13, .385); b.rotation.y = sx * .45; head.add(b);
+  }
+  if (veil) {
+    const vm = new THREE.MeshStandardMaterial({ map: laceTex, color: veil, transparent: true, side: THREE.DoubleSide, depthWrite: false, roughness: .9 });
+    const cap = new THREE.Mesh(new THREE.SphereGeometry(.53, 28, 12, 0, Math.PI * 2, 0, Math.PI * .44), vm); cap.position.y = .02; head.add(cap);
+    const drape = new THREE.Mesh(new THREE.CylinderGeometry(.53, .78, .95, 28, 1, true, .95, Math.PI * 2 - 1.9), vm);
+    drape.position.y = -.38; head.add(drape);
+  }
+  if (priest) {
+    // roman collar, purple confession stole, glasses
+    const white = new THREE.MeshStandardMaterial({ color: '#f4f1ea', roughness: .6 });
+    const col = new THREE.Mesh(new THREE.CylinderGeometry(.205, .215, .06, 16), white); col.position.y = 1.1; body.add(col);
+    const stoleM = new THREE.MeshStandardMaterial({ color: '#5b2a86', roughness: .7 });
+    for (const sx of [-1, 1]) {
+      const st = new THREE.Mesh(new THREE.BoxGeometry(.1, .8, .03), stoleM); st.position.set(sx * .1, .66, .42); st.rotation.x = -.3; body.add(st);
+      const cr = new THREE.Mesh(new THREE.BoxGeometry(.06, .015, .01), new THREE.MeshBasicMaterial({ color: '#e3b75a' })); cr.position.set(sx * .1, .42, .5); body.add(cr);
+      const lens = new THREE.Mesh(new THREE.TorusGeometry(.07, .012, 6, 18), eyeM); lens.position.set(sx * .16, -.02, .44); head.add(lens);
+    }
+  }
+  const label = makeLabel(name); label.position.y = 2.35; g.add(label);
+  return { g, body, armL, armR, head, bubble: null, bubbleT: 0 };
+}
+function say(av, text) {
+  if (av.bubble) { av.g.remove(av.bubble); av.bubble.material.map.dispose(); }
+  av.bubble = makeLabel(text, true); av.bubble.position.y = 2.85; av.g.add(av.bubble); av.bubbleT = 4;
+}
+function pose(av, dt, t, moving, kneel, phase = 0) {
+  const k = kneel ? 1 : 0;
+  av.kneelK = (av.kneelK || 0) + (k - (av.kneelK || 0)) * Math.min(1, dt * 6);
+  const kk = av.kneelK;
+  const step = moving ? Math.sin(t * 10 + phase) : 0;
+  av.body.position.y = (moving ? Math.abs(step) * .07 : Math.sin(t * 1.6 + phase) * .015) - kk * .32;
+  av.body.rotation.z = moving ? step * .06 : 0;
+  av.head.rotation.x = kk * .25;
+  av.armL.rotation.set(-step * .5 * (1 - kk) - kk * 1.15, 0, (1 - kk) * -.12 - kk * -.42);
+  av.armR.rotation.set(step * .5 * (1 - kk) - kk * 1.15, 0, (1 - kk) * .12 - kk * .42);
+  if (av.bubble) { av.bubbleT -= dt; if (av.bubbleT <= 0) { av.g.remove(av.bubble); av.bubble.material.map.dispose(); av.bubble = null; } }
+}
+
+/* ================= start screen preview ================= */
+const pv = $('preview');
+const pr = new THREE.WebGLRenderer({ canvas: pv, antialias: true, alpha: true });
+const pScene = new THREE.Scene(), pCam = new THREE.PerspectiveCamera(30, 2, .1, 50);
+pCam.position.set(0, 1.5, 5.2); pCam.lookAt(0, 1.05, 0);
+pScene.add(new THREE.HemisphereLight(0xffe6c8, 0x2a1a20, .9));
+const pl = new THREE.PointLight(0xffb060, 1.2, 10); pl.position.set(1.5, 2.5, 2); pScene.add(pl);
+let pAv = null;
+function lookOpts() { const v = VEILS.find(x => x.id === look.veil) || VEILS[0]; return { dress: DRESSES[look.dress].c, veil: v.c, name: look.name || 'Giáo dân' }; }
+function rebuildPreview() { if (pAv) pScene.remove(pAv.g); pAv = makeAvatar(lookOpts()); pAv.g.children[1].visible = false; pScene.add(pAv.g); }
+function sizePreview() { const r = pv.getBoundingClientRect(); pr.setPixelRatio(Math.min(2, devicePixelRatio || 1)); pr.setSize(r.width, r.height, false); pCam.aspect = r.width / r.height; pCam.updateProjectionMatrix(); }
+function opts(el, list, isOn, onPick, color) {
+  el.replaceChildren();
+  list.forEach((o, i) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'opt'; b.id = el.id + '-' + i;
+    const sw = document.createElement('i'); sw.style.background = color(o) || 'transparent'; if (!color(o)) sw.style.borderStyle = 'dashed';
+    b.append(sw, document.createTextNode(o.name)); b.setAttribute('aria-pressed', isOn(o, i));
+    b.addEventListener('click', () => { onPick(o, i); el.querySelectorAll('.opt').forEach((x, j) => x.setAttribute('aria-pressed', isOn(list[j], j))); rebuildPreview(); });
+    el.append(b);
+  });
+}
+opts($('veils'), VEILS, o => o.id === look.veil, o => { look.veil = o.id; }, o => o.c);
+opts($('dresses'), DRESSES, (o, i) => i === look.dress, (o, i) => { look.dress = i; }, o => o.c);
+$('nameIn').value = look.name;
+$('nameIn').addEventListener('input', () => { look.name = $('nameIn').value.trim().slice(0, 18); });
+rebuildPreview(); sizePreview();
+let started = false;
+
+/* ================= world ================= */
+const stage = $('stage');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1));
+stage.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#140e14');
+scene.fog = new THREE.Fog('#140e14', 26, 70);
+const camera = new THREE.PerspectiveCamera(55, 1, .1, 120);
+function resize() { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); sizePreview(); }
+addEventListener('resize', resize); resize();
+
+scene.add(new THREE.HemisphereLight(0xffe2c0, 0x2a1820, .72));
+const sun = new THREE.DirectionalLight(0xffd9a8, .35); sun.position.set(-6, 14, 10); scene.add(sun);
+const altarLight = new THREE.PointLight(0xffe0b0, 1.3, 22, 1.6); altarLight.position.set(0, 6, -25); scene.add(altarLight);
+
+const M = (c, r = .85) => new THREE.MeshStandardMaterial({ color: c, roughness: r });
+const wood = M('#5a3822', .7), woodDark = M('#3b2416', .75), stone = M('#6e5d55', .95), stoneLight = M('#8a7a70', .9), gold = new THREE.MeshStandardMaterial({ color: '#d8a944', roughness: .35, metalness: .6 }), cloth = M('#efe6d4', .9), red = M('#7a1f2c', .9);
+function box(w, h, d, mat, x, y, z, parent = scene) { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); parent.add(m); return m; }
+
+// room: x -12..12, z -32..32; cream stone walls 11 high under a painted barrel vault
+const wallM = M('#bba78e', .95), wallDark = M('#8f7b66', .95);
+const trim = new THREE.MeshStandardMaterial({ color: '#c99a3c', roughness: .4, metalness: .5 });
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(24, 64), new THREE.MeshStandardMaterial({ map: floorTex, roughness: .35 }));
+floor.rotation.x = -Math.PI / 2; scene.add(floor);
+const carpet = new THREE.Mesh(new THREE.PlaneGeometry(3, 50), M('#6a1424', .95)); carpet.rotation.x = -Math.PI / 2; carpet.position.set(0, .012, 6); scene.add(carpet);
+for (const x of [-1.55, 1.55]) { const b = new THREE.Mesh(new THREE.PlaneGeometry(.12, 50), trim); b.rotation.x = -Math.PI / 2; b.position.set(x, .014, 6); scene.add(b); }
+box(.6, 11, 64, wallM, -12.3, 5.5, 0); box(.6, 11, 64, wallM, 12.3, 5.5, 0);
+box(25, 11, .6, wallM, 0, 5.5, -32.3); box(25, 11, .6, wallM, 0, 5.5, 32.3);
+for (const s of [-1, 1]) { box(.12, 1.4, 64, woodDark, s * 11.95, .7, 0); box(.14, .1, 64, trim, s * 11.93, 1.42, 0); box(.4, .35, 64, wallDark, s * 11.85, 10.85, 0); }
+const vaultTex = canvasTex(128, 128, (g, w) => {
+  g.fillStyle = '#1d2b55'; g.fillRect(0, 0, w, w);
+  g.fillStyle = '#e8c46a';
+  for (const [x, y] of [[32, 32], [96, 96]]) { g.beginPath(); for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4, r = k % 2 ? 2.5 : 8; g.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r); } g.fill(); }
+}, [10, 14]);
+const vaultG = new THREE.Group(); vaultG.position.y = 11; vaultG.scale.y = .5; scene.add(vaultG);
+const vault = new THREE.Mesh(new THREE.CylinderGeometry(12.6, 12.6, 65, 40, 1, true, Math.PI / 2, Math.PI), new THREE.MeshStandardMaterial({ map: vaultTex, side: THREE.DoubleSide, roughness: .9 }));
+vault.rotation.x = Math.PI / 2; vaultG.add(vault);
+const ribM = M('#a8916f', .8);
+for (let z = -28; z <= 28; z += 8) { const rib = new THREE.Mesh(new THREE.TorusGeometry(12.45, .22, 8, 40, Math.PI), ribM); rib.position.z = z; vaultG.add(rib); }
+const capM = wallM.clone(); capM.side = THREE.DoubleSide;
+for (const z of [-31.9, 31.9]) { const cap = new THREE.Mesh(new THREE.CircleGeometry(12.6, 40, 0, Math.PI), capM); cap.position.z = z; vaultG.add(cap); }
+box(.35, .25, 64, trim, 0, 17.2, 0);
+// entrance doors glowing with daylight
+const door = new THREE.Mesh(new THREE.PlaneGeometry(4, 6), new THREE.MeshBasicMaterial({ color: '#f6e2b8' })); door.position.set(0, 3, 31.98); door.rotation.y = Math.PI; scene.add(door);
+box(4.8, .5, .3, gold, 0, 6.2, 31.9);
+
+// stained-glass windows
+function archWindow(tex, w, h) {
+  const s = new THREE.Shape(); s.moveTo(-w / 2, 0); s.lineTo(-w / 2, h);
+  s.quadraticCurveTo(-w / 2, h + w * .6, 0, h + w * .75); s.quadraticCurveTo(w / 2, h + w * .6, w / 2, h); s.lineTo(w / 2, 0);
+  const geo = new THREE.ShapeGeometry(s, 12), pos = geo.attributes.position, uv = geo.attributes.uv, top = h + w * .75;
+  for (let i = 0; i < pos.count; i++) uv.setXY(i, (pos.getX(i) + w / 2) / w, pos.getY(i) / top);
+  return new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }));
+}
+for (const side of [-1, 1]) for (let i = 0; i < 6; i++) {
+  const win = archWindow(glassTex(i * 13 + (side > 0 ? 7 : 1)), 2, 4.2);
+  win.position.set(side * 11.98, 3.6, -20 + i * 8); win.rotation.y = -side * Math.PI / 2; scene.add(win);
+}
+const rose = new THREE.Mesh(new THREE.CircleGeometry(2.4, 40), new THREE.MeshBasicMaterial({ map: roseTex })); rose.position.set(0, 14, -31.75); scene.add(rose);
+
+// columns
+const colliders = [];
+const addCol = (x0, x1, z0, z1) => colliders.push({ x0, x1, z0, z1 });
+for (const x of [-7.2, 7.2]) for (let z = -16; z <= 24; z += 8) {
+  const c = new THREE.Mesh(new THREE.CylinderGeometry(.42, .48, 6, 16), stoneLight); c.position.set(x, 3, z); scene.add(c);
+  box(1.2, .45, 1.2, stone, x, .22, z);
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(.75, .44, .55, 16), trim); cap.position.set(x, 6.15, z); scene.add(cap);
+  addCol(x - .65, x + .65, z - .65, z + .65);
+}
+// arcade: pointed-arch spandrels spring from the column capitals up to the vault
+{
+  const w = 8, s = new THREE.Shape();
+  s.moveTo(-w / 2, 6.4); s.lineTo(-w / 2 + .6, 6.4);
+  s.quadraticCurveTo(-w / 2 + .6, 9.3, 0, 10); s.quadraticCurveTo(w / 2 - .6, 9.3, w / 2 - .6, 6.4);
+  s.lineTo(w / 2, 6.4); s.lineTo(w / 2, 11); s.lineTo(-w / 2, 11); s.closePath();
+  const geo = new THREE.ExtrudeGeometry(s, { depth: .7, bevelEnabled: false, curveSegments: 16 });
+  for (const side of [-1, 1]) for (let zc = -12; zc <= 20; zc += 8) {
+    const m = new THREE.Mesh(geo, wallM); m.rotation.y = Math.PI / 2; m.position.set(side * 7.2 - .35, 0, zc); scene.add(m);
+  }
+  for (const side of [-1, 1]) box(.8, .25, 41, trim, side * 7.2, 11.05, 4);
+}
+// chandeliers
+const extraFlames = [];
+function flameSprite(x, y, z, parent, s = .2) {
+  const f = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xffd08a, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+  f.position.set(x, y, z); f.scale.set(s, s * 1.45, 1); parent.add(f); extraFlames.push({ f, s, ph: Math.random() * 9 }); return f;
+}
+for (const z of [-6, 8, 22]) {
+  const g = new THREE.Group(); g.position.set(0, 8.4, z); scene.add(g);
+  for (const [r, n, y0] of [[1.3, 12, 0], [.7, 6, .5]]) {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(r, .05, 8, 36), trim); ring.rotation.x = Math.PI / 2; ring.position.y = y0; g.add(ring);
+    for (let i = 0; i < n; i++) {
+      const a = i / n * Math.PI * 2;
+      const c = new THREE.Mesh(new THREE.CylinderGeometry(.035, .035, .25, 6), cloth); c.position.set(Math.cos(a) * r, y0 + .15, Math.sin(a) * r); g.add(c);
+      flameSprite(Math.cos(a) * r, y0 + .36, Math.sin(a) * r, g, .2);
+    }
+  }
+  const chain = new THREE.Mesh(new THREE.CylinderGeometry(.03, .03, 8.6, 6), trim); chain.position.y = 4.3; g.add(chain);
+  const finial = new THREE.Mesh(new THREE.SphereGeometry(.18, 12, 10), trim); finial.position.y = -.25; g.add(finial);
+  const l = new THREE.PointLight(0xffc27a, .75, 20, 1.5); l.position.y = -.2; g.add(l);
+}
+
+// pews
+const PEW_ROWS = []; for (let z = 0; z <= 24; z += 3) PEW_ROWS.push(z);
+for (const z of PEW_ROWS) for (const side of [-1, 1]) {
+  const cx = side * 4.2, w = 4.4, g = new THREE.Group(); g.position.set(cx, 0, z); scene.add(g);
+  box(w, .12, .6, wood, 0, .5, 0, g); box(w, .85, .1, wood, 0, .95, .3, g);
+  box(.12, .95, .75, woodDark, -w / 2, .47, .05, g); box(.12, .95, .75, woodDark, w / 2, .47, .05, g);
+  box(w, .08, .25, woodDark, 0, .16, -.45, g); // kneeler
+  addCol(cx - w / 2 - .1, cx + w / 2 + .1, z - .4, z + .45);
+}
+
+// sanctuary: platform, marble altar, gold reredos and the crucifix
+const platform = box(20, .25, 9.5, stoneLight, 0, .125, -27.25);
+box(20, .26, .3, trim, 0, .13, -22.5);
+const marble = M('#eee8dd', .3);
+box(4.6, 1.05, 1.5, marble, 0, .775, -27); box(4.8, .1, 1.7, marble, 0, 1.35, -27);
+box(4.0, .72, .04, trim, 0, .8, -26.23); box(.12, .5, .05, red, 0, .82, -26.2); box(.42, .12, .05, red, 0, .92, -26.2);
+box(4.82, .03, 1.2, cloth, 0, 1.41, -27);
+addCol(-2.5, 2.5, -28.3, -26.1);
+box(4.6, .35, .5, marble, 0, 1.55, -27.95);
+for (const x of [-2.1, -1.5, -.9, .9, 1.5, 2.1]) {
+  const h = .55 + (2.1 - Math.abs(x)) * .25;
+  const st = new THREE.Mesh(new THREE.CylinderGeometry(.035, .08, h, 10), trim); st.position.set(x, 1.72 + h / 2, -27.95); scene.add(st);
+  const cd = new THREE.Mesh(new THREE.CylinderGeometry(.04, .04, .32, 8), cloth); cd.position.set(x, 1.72 + h + .16, -27.95); scene.add(cd);
+  flameSprite(x, 1.72 + h + .4, -27.95, scene, .24);
+}
+// tabernacle
+box(.7, .7, .5, trim, 0, 2.07, -27.95);
+{ const d = new THREE.Mesh(new THREE.SphereGeometry(.3, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), trim); d.position.set(0, 2.42, -27.95); scene.add(d);
+  box(.04, .25, .04, trim, 0, 2.85, -27.95); box(.14, .04, .04, trim, 0, 2.88, -27.95); }
+// flowers
+for (const x of [-2.9, 2.9]) {
+  const vase = new THREE.Mesh(new THREE.CylinderGeometry(.18, .12, .5, 12), trim); vase.position.set(x, .5, -26.6); scene.add(vase);
+  for (let i = 0; i < 14; i++) { const f = new THREE.Mesh(new THREE.SphereGeometry(rnd(.08, .13), 8, 6), M(i % 3 ? '#f6f2ea' : '#c8344a', .8)); f.position.set(x + rnd(-.3, .3), rnd(.85, 1.35), -26.6 + rnd(-.25, .25)); scene.add(f); }
+}
+// sanctuary lamp
+{ const lamp = new THREE.Mesh(new THREE.SphereGeometry(.12, 12, 10), new THREE.MeshBasicMaterial({ color: '#d3202f' })); lamp.position.set(2.6, 3.4, -25); scene.add(lamp);
+  const ch = new THREE.Mesh(new THREE.CylinderGeometry(.01, .01, 13.6, 4), trim); ch.position.set(2.6, 10.3, -25); scene.add(ch);
+  flameSprite(2.6, 3.4, -25, scene, .5).material.color.set(0xff4a4a); }
+// reredos: three gold-framed velvet arches with pinnacles
+const velvet = M('#5a1020', .95), velvetBlue = M('#1e2c58', .95);
+function archMesh(w, h, mat) {
+  const s = new THREE.Shape(); s.moveTo(-w / 2, 0); s.lineTo(-w / 2, h);
+  s.quadraticCurveTo(-w / 2, h + w * .6, 0, h + w * .75); s.quadraticCurveTo(w / 2, h + w * .6, w / 2, h); s.lineTo(w / 2, 0);
+  return new THREE.Mesh(new THREE.ShapeGeometry(s, 16), mat);
+}
+const rer = new THREE.Group(); rer.position.set(0, 0, -31.95); scene.add(rer);
+box(15, 2, .6, marble, 0, 1.25, .3, rer);
+const panel = (x, w, h, mat) => { const f = archMesh(w + .5, h + .2, trim); f.position.set(x, 2.25, .62); rer.add(f); const p = archMesh(w, h, mat); p.position.set(x, 2.35, .64); rer.add(p); };
+panel(0, 4.8, 5.2, velvet); panel(-4.7, 2.4, 3.8, velvetBlue); panel(4.7, 2.4, 3.8, velvetBlue);
+for (const x of [-3.1, 3.1, -6.3, 6.3]) {
+  box(.32, 7.2, .32, trim, x, 5.85, .75, rer);
+  const pin = new THREE.Mesh(new THREE.ConeGeometry(.22, 1.1, 8), trim); pin.position.set(x, 10, .75); rer.add(pin);
+}
+// the crucifix: carved corpus on a wood-grain cross, lit by a spotlight
+function buildCorpus() {
+  const g = new THREE.Group();
+  const sk = new THREE.MeshStandardMaterial({ color: '#d6b08a', roughness: .5 });
+  const hairM = M('#3a2414', .8), clothM = M('#f2ede2', .85);
+  const V = (x, y, z) => new THREE.Vector3(x, y, z);
+  function limb(a, b, r1, r2) {
+    const d = b.clone().sub(a), len = d.length();
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(r2, r1, len, 12), sk);
+    m.position.copy(a).add(b).multiplyScalar(.5); m.quaternion.setFromUnitVectors(V(0, 1, 0), d.normalize()); g.add(m);
+    const j = new THREE.Mesh(new THREE.SphereGeometry(r2 * 1.02, 10, 8), sk); j.position.copy(b); g.add(j);
+  }
+  const torso = new THREE.Mesh(new THREE.LatheGeometry([[0, 0], [.125, 0], [.13, .1], [.15, .22], [.175, .33], [.18, .4], [.15, .45], [.07, .48], [0, .49]].map(p => new THREE.Vector2(p[0], p[1])), 24), sk);
+  torso.scale.z = .62; torso.position.y = 1.0; torso.rotation.z = -.04; g.add(torso);
+  const hips = new THREE.Mesh(new THREE.SphereGeometry(.15, 16, 12), sk); hips.scale.set(1, .8, .7); hips.position.y = .98; g.add(hips);
+  const lc = new THREE.Mesh(new THREE.CylinderGeometry(.168, .21, .24, 18), clothM); lc.position.y = .9; g.add(lc);
+  const knot = new THREE.Mesh(new THREE.BoxGeometry(.07, .3, .05), clothM); knot.position.set(.16, .79, .05); knot.rotation.z = .22; g.add(knot);
+  // legs: knees bent forward a little, right foot over left
+  limb(V(-.08, .92, 0), V(-.06, .5, .08), .078, .056); limb(V(-.06, .5, .08), V(-.015, .1, .02), .056, .04);
+  limb(V(.08, .92, 0), V(.05, .5, .09), .078, .056); limb(V(.05, .5, .09), V(.005, .12, .06), .056, .04);
+  for (const [x, y, z] of [[-.015, .06, .05], [.005, .08, .1]]) { const f = new THREE.Mesh(new THREE.BoxGeometry(.065, .04, .16), sk); f.position.set(x, y, z); f.rotation.x = 1.15; g.add(f); }
+  const nailF = new THREE.Mesh(new THREE.SphereGeometry(.018, 8, 6), trim); nailF.position.set(0, .09, .15); g.add(nailF);
+  // arms raised along the crossbeam
+  for (const s of [-1, 1]) {
+    const sh = new THREE.Mesh(new THREE.SphereGeometry(.072, 12, 10), sk); sh.position.set(s * .18, 1.44, 0); g.add(sh);
+    limb(V(s * .19, 1.44, 0), V(s * .53, 1.73, 0), .058, .046); limb(V(s * .53, 1.73, 0), V(s * .86, 1.96, 0), .046, .034);
+    const hand = new THREE.Mesh(new THREE.SphereGeometry(.05, 10, 8), sk); hand.scale.set(1.4, .75, .5); hand.position.set(s * .91, 1.99, 0); hand.rotation.z = s * .6; g.add(hand);
+    const nail = new THREE.Mesh(new THREE.SphereGeometry(.016, 8, 6), trim); nail.position.set(s * .91, 1.99, .03); g.add(nail);
+  }
+  limb(V(0, 1.46, 0), V(.025, 1.56, .03), .05, .045);
+  // head bowed to the right: long hair, beard, closed eyes, crown of thorns
+  const head = new THREE.Group(); head.position.set(.03, 1.58, .03); head.rotation.set(.4, 0, -.32); g.add(head);
+  const skull = new THREE.Mesh(new THREE.SphereGeometry(.1, 20, 16), sk); skull.scale.set(.9, 1.18, 1); skull.position.y = .09; head.add(skull);
+  const hair = new THREE.Mesh(new THREE.SphereGeometry(.108, 20, 16, Math.PI * .78, Math.PI * 1.44), hairM); hair.scale.set(.92, 1.2, 1.02); hair.position.y = .1; head.add(hair);
+  for (const s of [-1, 1]) { const lock = new THREE.Mesh(new THREE.BoxGeometry(.045, .26, .07), hairM); lock.position.set(s * .085, -.01, -.02); lock.rotation.z = s * .12; head.add(lock); }
+  const beard = new THREE.Mesh(new THREE.SphereGeometry(.088, 16, 10, Math.PI * .1, Math.PI * .8, Math.PI * .5, Math.PI * .45), hairM); beard.position.set(0, .06, .012); beard.scale.set(.95, 1.25, 1.05); head.add(beard);
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(.016, .045, 6), sk); nose.position.set(0, .09, .1); nose.rotation.x = Math.PI / 2; head.add(nose);
+  for (const s of [-1, 1]) { const lid = new THREE.Mesh(new THREE.BoxGeometry(.035, .006, .01), M('#5a3a28')); lid.position.set(s * .035, .115, .093); head.add(lid); }
+  const thornM = M('#5b4a2a', .9);
+  const crown = new THREE.Mesh(new THREE.TorusGeometry(.105, .015, 6, 28), thornM); crown.rotation.x = Math.PI / 2 - .15; crown.position.y = .17; head.add(crown);
+  for (let i = 0; i < 14; i++) { const a = i / 14 * Math.PI * 2; const th = new THREE.Mesh(new THREE.ConeGeometry(.006, .045, 4), thornM); th.position.set(Math.cos(a) * .11, .17, Math.sin(a) * .11); th.rotation.set(rnd(-1, 1), 0, rnd(-1.4, 1.4)); head.add(th); }
+  const halo = new THREE.Mesh(new THREE.TorusGeometry(.2, .012, 8, 40), trim); halo.position.set(0, .12, -.13); head.add(halo);
+  return g;
+}
+const woodTex = canvasTex(64, 256, (g, w, h) => {
+  g.fillStyle = '#4a2c18'; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 40; i++) { g.strokeStyle = `rgba(${20 + Math.random() * 40 | 0},${10 + Math.random() * 20 | 0},6,.55)`; g.lineWidth = 1 + Math.random() * 2; const x = Math.random() * w; g.beginPath(); g.moveTo(x, 0); g.bezierCurveTo(x + rnd(-6, 6), h / 3, x + rnd(-6, 6), h * 2 / 3, x + rnd(-4, 4), h); g.stroke(); }
+});
+const crossM = new THREE.MeshStandardMaterial({ map: woodTex, roughness: .7 });
+const crossG = new THREE.Group(); crossG.position.set(0, 0, -31.1); scene.add(crossG);
+box(.34, 6.6, .26, crossM, 0, 6.6, 0, crossG); box(3.7, .32, .26, crossM, 0, 8.25, 0, crossG);
+{ const inri = new THREE.Mesh(new THREE.PlaneGeometry(.7, .28), new THREE.MeshStandardMaterial({ roughness: .7, map: canvasTex(128, 52, (g) => { g.fillStyle = '#efe4c8'; g.fillRect(0, 0, 128, 52); g.fillStyle = '#5a1a1a'; g.font = '700 30px Georgia,serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('INRI', 64, 28); }) }));
+  inri.position.set(0, 9.45, .14); crossG.add(inri); }
+{ const corpus = buildCorpus(); corpus.scale.setScalar(1.3); corpus.position.set(0, 5.6, .2); crossG.add(corpus); }
+const spot = new THREE.SpotLight(0xfff0d6, 1.6, 26, .3, .55, 1.2); spot.position.set(0, 15, -21); spot.target.position.set(0, 7, -31); scene.add(spot, spot.target);
+{ const aura = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xffd9a0, transparent: true, opacity: .28, blending: THREE.AdditiveBlending, depthWrite: false })); aura.position.set(0, 7.4, -31.4); aura.scale.set(5, 6.5, 1); scene.add(aura); }
+const statue = new THREE.Group(); statue.position.set(8, .25, -25); scene.add(statue);
+{ const sm = M('#f2efe9', .5), blue = M('#4a6fb5', .6);
+  const robe = new THREE.Mesh(new THREE.CylinderGeometry(.35, .7, 2.2, 18), sm); robe.position.y = 1.4; statue.add(robe);
+  const mantle = new THREE.Mesh(new THREE.CylinderGeometry(.42, .75, 2.0, 18, 1, true, 1.2, Math.PI * 2 - 2.4), blue); mantle.position.y = 1.5; mantle.material.side = THREE.DoubleSide; statue.add(mantle);
+  const h = new THREE.Mesh(new THREE.SphereGeometry(.32, 16, 12), sm); h.position.y = 2.75; statue.add(h);
+  const halo = new THREE.Mesh(new THREE.TorusGeometry(.38, .03, 8, 32), gold); halo.position.set(0, 2.85, -.15); statue.add(halo);
+  box(1.4, .3, 1.4, stoneLight, 0, .15, 0, statue);
+  const sl = new THREE.PointLight(0x9fc0ff, .6, 6, 2); sl.position.set(0, 3, 1); statue.add(sl);
+  addCol(7.2, 8.8, -25.8, -24.2); }
+// lectern (ambo)
+const ambo = new THREE.Group(); ambo.position.set(-5.5, .25, -23.6); scene.add(ambo);
+box(.9, 1.2, .6, wood, 0, .6, 0, ambo); { const top = box(1.1, .08, .8, woodDark, 0, 1.3, -.05, ambo); top.rotation.x = -.35; }
+{ const book = box(.7, .06, .5, M('#7a1f2c'), 0, 1.38, -.05, ambo); book.rotation.x = -.35; }
+addCol(-6.1, -4.9, -24, -23.2);
+// confessional: the priest sits in the middle stall; penitents kneel in front of the side stalls
+const booth = new THREE.Group(); booth.position.set(-11.2, 0, 10); scene.add(booth);
+const bw = M('#4a2a18', .55), bwl = M('#6e4226', .55);
+box(.12, 3.4, 5, bw, -.8, 1.7, 0, booth);
+for (const z of [-2.45, 2.45]) box(1.7, 3.4, .12, bw, -.02, 1.7, z, booth);
+for (const z of [-.8, .8]) box(1.5, 3.2, .08, bwl, -.05, 1.6, z, booth);
+box(1.95, .22, 5.3, bwl, 0, 3.5, 0, booth); box(2.05, .12, 5.4, trim, 0, 3.66, 0, booth);
+box(.08, .55, .08, trim, .3, 4.0, 0, booth); box(.3, .08, .08, trim, .3, 4.1, 0, booth);
+box(.08, .95, 1.5, bwl, .78, .48, 0, booth);                                        // half door of the priest's stall
+for (let i = -3; i <= 3; i++) box(.03, 1.1, .03, trim, .8, 2.0, i * .2, booth);      // grille
+box(.05, .05, 1.5, trim, .8, 2.55, 0, booth); box(.05, .05, 1.5, trim, .8, 1.45, 0, booth);
+for (const z of [-1.62, 1.62]) {
+  box(.06, 2.7, 1.0, red, .8, 1.65, z + (z > 0 ? .3 : -.3), booth);                  // curtain, partly drawn
+  box(.5, .18, 1.2, bwl, 1.1, .09, z, booth);                                         // kneeler
+}
+for (const z of [-2.45, -.8, .8, 2.45]) box(.14, 3.4, .14, trim, .82, 1.7, z, booth);
+addCol(-12, -10.3, 7.45, 12.55);
+{ const bl = new THREE.PointLight(0xffd9a0, .5, 4, 2); bl.position.set(-10.9, 2.6, 10); scene.add(bl); }
+const priest = makeAvatar({ name: 'Cha Phaolô · Cha xứ', dress: '#16121a', veil: null, hair: '#8c8c8c', priest: true });
+priest.g.position.set(-11.3, 0, 10); priest.g.rotation.y = Math.PI / 2; scene.add(priest.g);
+// a glowing sign so the confessional can be spotted from the aisle
+const boothSign = makeLabel('✝ Tòa Giải Tội · Cha xứ đang ngồi tòa', true); boothSign.scale.multiplyScalar(1.7); boothSign.position.set(-10.2, 4.9, 10); scene.add(boothSign);
+// bell rope by the door
+const rope = new THREE.Mesh(new THREE.CylinderGeometry(.05, .05, 9, 6), M('#b89a6a')); rope.position.set(10.6, 7.5, 28.5); scene.add(rope);
+const ropeEnd = new THREE.Mesh(new THREE.SphereGeometry(.16, 10, 8), M('#8a2a2a')); ropeEnd.position.set(10.6, 3, 28.5); scene.add(ropeEnd);
+
+// candle racks
+const flames = [];
+function rack(x, z) {
+  const g = new THREE.Group(); g.position.set(x, 0, z); scene.add(g);
+  box(3.2, .8, 1.1, woodDark, 0, .4, 0, g); box(3.2, .25, .7, woodDark, 0, .92, -.2, g); box(3.2, .25, .4, woodDark, 0, 1.17, -.35, g);
+  const candleM = M('#f1e7d2', .6);
+  const geo = new THREE.CylinderGeometry(.045, .045, .26, 8);
+  const tiers = [[.82, .35], [1.06, 0], [1.31, -.32]];
+  const light = new THREE.PointLight(0xffa64d, .5, 9, 2); light.position.set(0, 2, .6); g.add(light);
+  const slots = [];
+  tiers.forEach(([y, dz]) => { for (let i = 0; i < 10; i++) {
+    const cx = -1.4 + i * .31, c = new THREE.Mesh(geo, candleM); c.position.set(cx, y + .13, dz); g.add(c);
+    const f = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xffd08a, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+    f.position.set(cx, y + .34, dz); f.scale.set(.22, .32, 1); f.visible = false; g.add(f);
+    const slot = { f, lit: false, born: 0, ph: Math.random() * 9 }; slots.push(slot); flames.push(slot);
+  } });
+  addCol(x - 1.7, x + 1.7, z - .7, z + .7);
+  return { g, slots, light, x, z };
+}
+const racks = [rack(-4.6, -19.4), rack(4.6, -19.4)];
+function litCount() { return flames.filter(s => s.lit).length; }
+function lightCandle(pref) {
+  const order = pref != null ? [racks[pref], racks[1 - pref]] : racks;
+  let slot = null;
+  for (const r of order) { const free = r.slots.filter(s => !s.lit); if (free.length) { slot = pick(free); break; } }
+  if (!slot) { const old = flames.filter(s => s.lit).sort((a, b) => a.born - b.born)[0]; old.lit = false; old.f.visible = false; slot = old; }
+  slot.lit = true; slot.f.visible = true; slot.born = performance.now();
+  updateRackLights();
+}
+function updateRackLights() { racks.forEach(r => { r.n = r.slots.filter(s => s.lit).length; }); }
+for (let i = 0; i < 16; i++) lightCandle(i % 2);
+for (let i = 0; i < Math.min(me.candles, 20); i++) lightCandle(0);
+
+/* ================= collision ================= */
+const BOUNDS = { x0: -11.5, x1: 11.5, z0: -31.3, z1: 31.2 };
+const R = .35;
+function blocked(x, z) {
+  if (x < BOUNDS.x0 || x > BOUNDS.x1 || z < BOUNDS.z0 || z > BOUNDS.z1) return true;
+  for (const c of colliders) if (x > c.x0 - R && x < c.x1 + R && z > c.z0 - R && z < c.z1 + R) return true;
+  return false;
+}
+const groundY = (x, z) => (z < -22.5 && Math.abs(x) < 10 ? .25 : 0);
+
+/* ================= player ================= */
+let player = null;
+const P = { x: 0, z: 27, heading: Math.PI, kneel: false };
+let camYaw = 0, camPitch = .38, camDist = 6.5;
+
+/* ================= bots ================= */
+// Bots walk only along open lanes (center aisle x=0, side aisles x=±8.8) and two cross rows (z=-12, z=28).
+const TARGETS = [];
+for (const z of PEW_ROWS) for (const s of [-1, 1]) TARGETS.push({ x: s * 2.7, z: z - .78, lane: 0, act: 'kneel', face: Math.PI });
+for (const s of [0, 1]) TARGETS.push({ x: racks[s].x + rnd(-.8, .8), z: -18.2, lane: 0, act: 'candle', rack: s, face: Math.PI });
+TARGETS.push({ x: 7.6, z: -22.9, lane: 8.8, act: 'pray', face: Math.PI });
+TARGETS.push({ x: -5.5, z: -22.4, lane: 0, act: 'read', face: Math.PI });
+TARGETS.push({ x: -9.95, z: 8.38, lane: -8.8, act: 'confess', face: -Math.PI / 2 }, { x: -9.95, z: 11.62, lane: -8.8, act: 'confess', face: -Math.PI / 2 });
+for (let i = 0; i < 4; i++) TARGETS.push({ x: rnd(-3, 3), z: rnd(-17, -13), lane: 0, act: 'idle', face: Math.PI });
+for (const s of [-1, 1]) for (let i = 0; i < 3; i++) { const z = rnd(-10, 26); TARGETS.push({ x: s * 8.8, z, lane: s * 8.8, act: 'idle', face: Math.PI }); }
+const BOT_DEFS = [
+  ['Anna Thảo', '#2f4f8f', '#ffffff'], ['Giuse Minh', '#2b2f3a', null], ['Têrêsa Vy', '#7d2433', '#2a2426'], ['Phêrô Nam', '#3d4a3a', null],
+  ['Cecilia Ngọc', '#e9e3d6', '#ecd9b4'], ['Gioan Bảo', '#26222a', null], ['Martha Lan', '#5b3f84', '#ffffff'], ['Rosa Hồng', '#9c3b4a', '#ffffff'],
+  ['Đaminh Khoa', '#3a3550', null], ['Lucia Hạnh', '#2f4f8f', '#2a2426'], ['Phanxicô Huy', '#4a3a2a', null], ['Agnes Mai', '#e9e3d6', '#ffffff'],
+];
+const bots = BOT_DEFS.map(([name, dress, veil], i) => {
+  const av = makeAvatar({ name, dress, veil, hair: pick(['#2b1d16', '#1a1210', '#3a2618']) });
+  const t = TARGETS[(i * 5) % TARGETS.length];
+  const b = { av, x: t.x, z: t.z, lane: t.lane, path: [], target: t, state: 'act', timer: rnd(1, 8), heading: t.face, ph: Math.random() * 6, speed: rnd(1.2, 1.7) };
+  av.g.position.set(b.x, groundY(b.x, b.z), b.z); scene.add(av.g); return b;
+});
+function planPath(b, t) {
+  const cross = Math.abs(b.z + 12) + Math.abs(t.z + 12) < Math.abs(b.z - 28) + Math.abs(t.z - 28) ? -12 : 28;
+  const p = [{ x: b.lane, z: b.z }];
+  if (b.lane !== t.lane) p.push({ x: b.lane, z: cross }, { x: t.lane, z: cross });
+  p.push({ x: t.lane, z: t.z }, { x: t.x, z: t.z });
+  b.path = p; b.target = t; b.state = 'walk';
+}
+function updateBot(b, dt, t) {
+  let moving = false;
+  if (b.state === 'walk') {
+    const wp = b.path[0];
+    if (!wp) { b.state = 'act'; b.timer = b.target.act === 'idle' ? rnd(3, 7) : rnd(8, 16); b.heading = b.target.face; b.lane = b.target.lane; b.acted = false; }
+    else {
+      const dx = wp.x - b.x, dz = wp.z - b.z, d = Math.hypot(dx, dz);
+      if (d < .05) b.path.shift();
+      else {
+        const s = Math.min(d, b.speed * dt); b.x += dx / d * s; b.z += dz / d * s; moving = true;
+        const want = Math.atan2(dx, dz); b.heading += angDiff(want, b.heading) * Math.min(1, dt * 8);
+      }
+    }
+  } else {
+    b.timer -= dt;
+    b.heading += angDiff(b.target.face, b.heading) * Math.min(1, dt * 4);
+    if (!b.acted && b.timer < 6) {
+      b.acted = true;
+      if (b.target.act === 'candle') { lightCandle(b.target.rack); say(b.av, 'Xin Chúa ban bình an'); }
+      else if (b.target.act === 'confess') { say(b.av, 'Thưa cha, con xin xưng tội'); setTimeout(() => say(priest, pick(['Cha nghe đây, con nói đi', 'Chúa thương xót con', 'Con về bình an'])), 2200); }
+      else if (Math.random() < .35) say(b.av, pick(BOT_LINES));
+    }
+    if (b.timer <= 0) {
+      let next; do { next = pick(TARGETS); } while (next === b.target || bots.some(o => o !== b && o.target === next && (next.act === 'kneel' || next.act === 'confess')));
+      planPath(b, next);
+    }
+  }
+  const kneel = b.state === 'act' && ['kneel', 'pray', 'confess'].includes(b.target.act);
+  pose(b.av, dt, t, moving, kneel, b.ph);
+  b.av.g.position.set(b.x, groundY(b.x, b.z), b.z); b.av.g.rotation.y = b.heading;
+}
+function angDiff(a, b) { let d = a - b; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; }
+$('online').textContent = (bots.length + 2) + ' người';
+
+/* ================= interaction points ================= */
+const POIS = [
+  { x: -4.6, z: -18, r: 2.4, type: 'candle', label: 'Thắp nến' },
+  { x: 4.6, z: -18, r: 2.4, type: 'candle', label: 'Thắp nến' },
+  { x: -9.6, z: 10, r: 2.6, type: 'confess', label: 'Xưng tội với cha xứ' },
+  { x: -5.5, z: -22.3, r: 1.8, type: 'verse', label: 'Đọc Lời Chúa' },
+  { x: 7.8, z: -23, r: 2, type: 'mary', label: 'Cầu nguyện với Đức Mẹ' },
+  { x: 10.4, z: 28.5, r: 1.6, type: 'bell', label: 'Kéo chuông' },
+  { x: 0, z: -24.5, r: 2.6, type: 'altar', label: 'Quỳ trước bàn thờ' },
+];
+function nearPOI() {
+  let best = null, bd = 1e9;
+  for (const p of POIS) { const d = Math.hypot(P.x - p.x, P.z - p.z); if (d < p.r && d < bd) { best = p; bd = d; } }
+  if (best) return best;
+  // pew rows: standing in the aisle beside a row, or between two rows
+  for (const z of PEW_ROWS) {
+    if (Math.abs(P.z - (z - .8)) < 1.1 && Math.abs(P.x) < 6.5) return { type: 'pew', label: 'Quỳ cầu nguyện', row: z };
+  }
+  return null;
+}
+let current = null;
+function refreshAct() {
+  const p = player && !sheetOpen() ? nearPOI() : null;
+  const key = p ? p.type + (p.row ?? '') : '';
+  if (key === (current && current.key)) return;
+  current = p ? { ...p, key } : null;
+  const btn = $('act');
+  if (!p) { btn.hidden = true; return; }
+  btn.hidden = false; btn.replaceChildren(document.createTextNode(p.label + ' '));
+  if (matchMedia('(hover:hover)').matches) { const k = document.createElement('kbd'); k.textContent = 'E'; btn.append(k); }
+}
+function doAct() {
+  if (!current) return;
+  const p = current;
+  if (p.type === 'bell') { bellSound(); ropeEnd.userData.pull = 1; say(player, 'Boong… boong…'); return; }
+  if (p.type === 'pew') {
+    const side = P.x < 0 ? -1 : 1; P.x = side * Math.min(5.8, Math.max(2.3, Math.abs(P.x))); P.z = p.row - .78; P.heading = Math.PI; P.kneel = true;
+    return openSheet('pray');
+  }
+  if (p.type === 'altar' || p.type === 'mary') { P.heading = Math.PI; P.kneel = true; return openSheet('pray', p.type === 'mary' ? 'Kính Mừng' : 'Lạy Cha'); }
+  if (p.type === 'candle') { P.heading = Math.PI; return openSheet('candle', p.x < 0 ? 0 : 1); }
+  if (p.type === 'confess') {
+    const taken = bots.some(b => b.state === 'act' && b.target.act === 'confess' && Math.abs(b.z - 11.62) < .5);
+    P.x = -9.95; P.z = taken ? 8.38 : 11.62; P.heading = -Math.PI / 2; P.kneel = true; camYaw = Math.PI / 2 - .55; camPitch = .3;
+  }
+  openSheet(p.type);
+}
+$('act').addEventListener('click', doAct);
+
+/* ================= quick travel ================= */
+// heading: direction the character faces; yaw: camera angle behind them
+const PLACES = [
+  { name: 'Tòa giải tội', sub: 'Xưng tội với cha xứ', x: -8.7, z: 10.6, heading: -Math.PI / 2, yaw: Math.PI / 2 - .5 },
+  { name: 'Bàn thờ', sub: 'Tượng Chúa chịu đóng đinh', x: 0, z: -23.6, heading: Math.PI, yaw: 0 },
+  { name: 'Giá nến', sub: 'Thắp nến cầu nguyện', x: -4.6, z: -17.4, heading: Math.PI, yaw: .25 },
+  { name: 'Tượng Đức Mẹ', sub: 'Đọc kinh Kính Mừng', x: 7.8, z: -22.4, heading: Math.PI, yaw: -.3 },
+  { name: 'Bục Lời Chúa', sub: 'Rút một câu Kinh Thánh', x: -5.5, z: -22.1, heading: Math.PI, yaw: .3 },
+  { name: 'Hàng ghế', sub: 'Quỳ cầu nguyện', x: 0, z: 14.2, heading: Math.PI, yaw: 0 },
+  { name: 'Dây chuông', sub: 'Kéo chuông nhà thờ', x: 9.4, z: 28.5, heading: Math.PI / 2, yaw: -Math.PI / 2 },
+];
+let snapCam = false;
+function travel(pl) {
+  P.x = pl.x; P.z = pl.z; P.heading = pl.heading; P.kneel = false; camYaw = pl.yaw; camPitch = .35;
+  snapCam = true; closeSheet();
+}
+$('mapBtn').addEventListener('click', () => { if (player) openSheet('map'); });
+
+/* ================= sheets ================= */
+const sheetOpen = () => !$('sheetWrap').hidden;
+function closeSheet() { $('sheetWrap').hidden = true; current = null; refreshAct(); }
+$('sheetClose').addEventListener('click', closeSheet);
+$('sheetWrap').addEventListener('click', e => { if (e.target === $('sheetWrap')) closeSheet(); });
+function openSheet(type, arg) {
+  const body = $('sheetBody'); body.replaceChildren($('tpl-' + (type === 'mary' ? 'pray' : type)).content.cloneNode(true));
+  $('sheetWrap').hidden = false; $('act').hidden = true;
+  const titles = { candle: 'Thắp một ngọn nến', pray: 'Cùng đọc kinh', confess: 'Tòa giải tội', verse: 'Lời Chúa hôm nay', map: 'Đi tới' };
+  $('sheetTitle').textContent = titles[type];
+  if (type === 'map') {
+    for (const pl of PLACES) {
+      const b = document.createElement('button'); b.type = 'button';
+      const n = document.createElement('b'); n.textContent = pl.name; const s = document.createElement('span'); s.textContent = pl.sub;
+      b.append(n, s); b.addEventListener('click', () => travel(pl)); $('places').append(b);
+    }
+  }
+  if (type === 'candle') {
+    const upd = () => $('myCandles').textContent = me.candles ? `Bạn đã thắp ${me.candles} ngọn nến.` : 'Nến của bạn sẽ cháy cùng nến của mọi người.';
+    upd();
+    $('lightBtn').addEventListener('click', () => {
+      const text = $('intent').value.trim().replace(/\s+/g, ' ').slice(0, 60);
+      me.candles++; store.set('nto3-me', me); lightCandle(arg); chime(); upd();
+      say(player, text || 'Xin Chúa ban bình an'); $('intent').value = '';
+      toast('Nến đã được thắp'); setTimeout(closeSheet, 700);
+    });
+    setTimeout(() => $('intent').focus(), 50);
+  }
+  if (type === 'pray') {
+    let key = arg || 'Lạy Cha';
+    const pickEl = $('prayerPick');
+    const show = () => { $('prayerText').textContent = PRAYERS[key]; pickEl.querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed', c.textContent === key)); };
+    Object.keys(PRAYERS).forEach(k => { const c = document.createElement('button'); c.className = 'chip'; c.type = 'button'; c.textContent = k; c.addEventListener('click', () => { key = k; show(); }); pickEl.append(c); });
+    show();
+    const upd = () => $('myPrayers').textContent = me.prayers ? `Bạn đã đọc ${me.prayers} kinh.` : 'Đọc chậm rãi rồi bấm Amen.';
+    upd();
+    $('amenBtn').addEventListener('click', () => { me.prayers++; store.set('nto3-me', me); amenChord(); upd(); say(player, 'Amen'); });
+  }
+  if (type === 'confess') {
+    // scripted dialogue with the parish priest; nothing typed here is stored
+    const log = $('pchat'); let stage = 0, busy = false;
+    const add = (who, text) => { const d = document.createElement('div'); d.className = 'msg ' + who; d.textContent = text; log.append(d); log.scrollTop = log.scrollHeight; return d; };
+    const priestSay = (text, then) => {
+      busy = true; const typing = add('priest typing', 'Cha đang lắng nghe…');
+      setTimeout(() => {
+        if (!log.isConnected) return;
+        typing.remove(); add('priest', text); say(priest, text.length > 34 ? text.slice(0, 32) + '…' : text); busy = false; then && then();
+      }, reduce ? 200 : 1100 + Math.min(1600, text.length * 12));
+    };
+    priestSay('Bình an của Chúa ở cùng con. Con hãy làm dấu thánh giá, rồi thưa với Chúa những điều con muốn xưng.');
+    $('pform').addEventListener('submit', e => {
+      e.preventDefault(); const v = $('pin').value.trim(); if (!v || busy || stage > 0) return;
+      $('pin').value = ''; add('me', v);
+      const hit = COUNSEL.find(([re]) => re.test(v));
+      priestSay((hit ? hit[1] : pick(GENERIC)) + ' Con còn điều gì muốn thưa nữa không?');
+    });
+    $('pdone').addEventListener('click', () => {
+      if (busy || stage > 0) return; stage = 1; $('pdone').hidden = true;
+      add('me', 'Thưa cha, con chỉ nhớ bấy nhiêu tội. Con xin ăn năn.');
+      priestSay('Việc đền tội của con: ' + pick(PENANCE) + ' Bây giờ con hãy thành tâm đọc Kinh Ăn Năn Tội.', () => { $('pact').hidden = false; });
+    });
+    $('pact').addEventListener('click', () => {
+      if (busy) return; $('pact').hidden = true; add('me', ACT_OF_CONTRITION); amenChord();
+      priestSay('Chúa là Đấng giàu lòng thương xót. Cha cầu chúc con bình an. Khi có dịp, con hãy đến nhà thờ xưng tội trực tiếp với linh mục. Con về bình an.', () => { bellSound(330); stage = 2; $('pform').hidden = true; });
+    });
+    setTimeout(() => $('pin').focus(), 50);
+  }
+  if (type === 'verse') {
+    let last = -1;
+    $('drawBtn').addEventListener('click', () => {
+      let i; do { i = (Math.random() * VERSES.length) | 0; } while (i === last); last = i;
+      const card = document.createElement('div'); card.className = 'verse-card';
+      const q = document.createElement('blockquote'); q.textContent = '“' + VERSES[i][0] + '”';
+      const c = document.createElement('cite'); c.textContent = VERSES[i][1] + ' · bản 1926'; q.append(c); card.append(q);
+      $('verseSlot').replaceChildren(card); $('drawBtn').textContent = 'Rút câu khác'; chime();
+    });
+  }
+}
+
+/* ================= input ================= */
+const keys = {};
+addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') { if (e.key === 'Escape') e.target.blur(); return; }
+  if (e.key === 'Escape' && sheetOpen()) return closeSheet();
+  keys[e.key.toLowerCase()] = true;
+  if (!started) return;
+  if (e.key === 'e' || e.key === 'E') doAct();
+  if (e.key === 'Enter') { e.preventDefault(); openChat(); }
+  if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(e.key.toLowerCase())) e.preventDefault();
+});
+addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+
+// joystick
+const joy = $('joy'), knob = $('knob'); let jv = { x: 0, y: 0 }, joyId = null;
+function joyMove(e) {
+  const r = joy.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  let dx = e.clientX - cx, dy = e.clientY - cy; const max = r.width / 2 - 10, d = Math.hypot(dx, dy);
+  if (d > max) { dx *= max / d; dy *= max / d; }
+  knob.style.transform = `translate(${dx}px,${dy}px)`; jv = { x: dx / max, y: dy / max };
+}
+joy.addEventListener('pointerdown', e => { joyId = e.pointerId; joy.setPointerCapture(e.pointerId); joyMove(e); });
+joy.addEventListener('pointermove', e => { if (e.pointerId === joyId) joyMove(e); });
+const joyEnd = e => { if (e.pointerId !== joyId) return; joyId = null; jv = { x: 0, y: 0 }; knob.style.transform = ''; };
+joy.addEventListener('pointerup', joyEnd); joy.addEventListener('pointercancel', joyEnd);
+// camera drag
+const cvs = renderer.domElement; let dragId = null, lx = 0, ly = 0;
+cvs.addEventListener('pointerdown', e => { dragId = e.pointerId; lx = e.clientX; ly = e.clientY; cvs.setPointerCapture(e.pointerId); });
+cvs.addEventListener('pointermove', e => {
+  if (e.pointerId !== dragId) return;
+  camYaw -= (e.clientX - lx) * .006; camPitch = Math.max(.08, Math.min(1.1, camPitch + (e.clientY - ly) * .004));
+  lx = e.clientX; ly = e.clientY;
+});
+const dragEnd = e => { if (e.pointerId === dragId) dragId = null; };
+cvs.addEventListener('pointerup', dragEnd); cvs.addEventListener('pointercancel', dragEnd);
+cvs.addEventListener('wheel', e => { e.preventDefault(); camDist = Math.max(3, Math.min(11, camDist + e.deltaY * .005)); }, { passive: false });
+
+$('kneelBtn').addEventListener('click', () => { if (!player) return; P.kneel = !P.kneel; if (P.kneel) say(player, '✝'); });
+function openChat() { $('chatbox').hidden = false; $('chatIn').focus(); }
+$('chatBtn').addEventListener('click', () => { if ($('chatbox').hidden) openChat(); else $('chatbox').hidden = true; });
+$('chatbox').addEventListener('submit', e => {
+  e.preventDefault(); const v = $('chatIn').value.trim(); if (v && player) say(player, v.slice(0, 60));
+  $('chatIn').value = ''; $('chatbox').hidden = true; $('chatIn').blur();
+  if (v && /amen|chúa|bình an|xin chào|chào/i.test(v)) { const b = bots.slice().sort((a, c) => Math.hypot(a.x - P.x, a.z - P.z) - Math.hypot(c.x - P.x, c.z - P.z))[0]; setTimeout(() => say(b.av, /chào/i.test(v) ? 'Chào bạn, bình an của Chúa' : 'Amen'), 900); }
+});
+
+/* ================= start ================= */
+$('enter').addEventListener('click', () => {
+  look.name = ($('nameIn').value.trim() || 'Giáo dân').slice(0, 18); store.set('nto3-look', look);
+  player = makeAvatar(lookOpts()); scene.add(player.g);
+  $('start').hidden = true; started = true; audio(); bellSound(); setTimeout(() => bellSound(174), 1600);
+  if (!musicOn) toggleMusic();
+  setTimeout(() => say(bots[0].av, 'Chào ' + look.name + '!'), 2500);
+  setTimeout(() => { $('hint').hidden = true; }, 9000);
+});
+
+/* ================= loop ================= */
+let last = performance.now(), t = 0;
+const camPos = new THREE.Vector3(0, 4, 34), look3 = new THREE.Vector3();
+function frame(now) {
+  const dt = Math.min(.05, (now - last) / 1000); last = now; t += dt;
+  // player movement
+  if (player) {
+    let ix = 0, iy = 0;
+    if (!sheetOpen() && document.activeElement !== $('chatIn')) {
+      if (keys.w || keys.arrowup) iy += 1; if (keys.s || keys.arrowdown) iy -= 1;
+      if (keys.a || keys.arrowleft) ix -= 1; if (keys.d || keys.arrowright) ix += 1;
+      if (jv.x || jv.y) { ix += jv.x; iy -= jv.y; }
+    }
+    const mag = Math.min(1, Math.hypot(ix, iy));
+    let moving = mag > .1;
+    if (moving) {
+      P.kneel = false;
+      const fx = -Math.sin(camYaw), fz = -Math.cos(camYaw), rx = Math.cos(camYaw), rz = -Math.sin(camYaw);
+      let mx = fx * iy + rx * ix, mz = fz * iy + rz * ix; const ml = Math.hypot(mx, mz) || 1; mx /= ml; mz /= ml;
+      const sp = 3.6 * mag * dt;
+      if (!blocked(P.x + mx * sp, P.z)) P.x += mx * sp;
+      if (!blocked(P.x, P.z + mz * sp)) P.z += mz * sp;
+      P.heading += angDiff(Math.atan2(mx, mz), P.heading) * Math.min(1, dt * 10);
+    }
+    pose(player, dt, t, moving, P.kneel, 0);
+    player.g.position.set(P.x, groundY(P.x, P.z), P.z); player.g.rotation.y = P.heading;
+    refreshAct();
+  }
+  bots.forEach(b => updateBot(b, dt, t));
+  // flames
+  const nowMs = performance.now();
+  for (const s of flames) if (s.lit) {
+    const f = reduce ? 1 : 1 + Math.sin(t * 11 + s.ph) * .1 + Math.sin(t * 27 + s.ph * 2) * .06;
+    const fresh = Math.max(0, 1 - (nowMs - s.born) / 1200);
+    s.f.scale.set(.22 * f * (1 + fresh), .32 * f * (1 + fresh), 1);
+  }
+  racks.forEach(r => { r.light.intensity = .25 + r.n * .04 + (reduce ? 0 : Math.sin(t * 7 + r.x) * .05); });
+  for (const e of extraFlames) { const f = reduce ? 1 : 1 + Math.sin(t * 10 + e.ph) * .1 + Math.sin(t * 25 + e.ph) * .05; e.f.scale.set(e.s * f, e.s * 1.45 * f, 1); }
+  pose(priest, dt, t, false, true, 2);
+  if (player) { const d = Math.hypot(P.x + 11.3, P.z - 10); priest.head.rotation.y += ((d < 5 ? Math.max(-.6, Math.min(.6, Math.atan2(-(P.z - 10), P.x + 11.3))) : 0) - priest.head.rotation.y) * Math.min(1, dt * 3); }
+  if (ropeEnd.userData.pull) { ropeEnd.userData.pull = Math.max(0, ropeEnd.userData.pull - dt); ropeEnd.position.y = 3 - Math.sin(ropeEnd.userData.pull * Math.PI) * .6; }
+  // camera
+  const tgt = started ? new THREE.Vector3(P.x, groundY(P.x, P.z) + 1.3, P.z) : new THREE.Vector3(0, 3, -10);
+  let want;
+  if (started) {
+    want = new THREE.Vector3(tgt.x + Math.sin(camYaw) * camDist * Math.cos(camPitch), tgt.y + camDist * Math.sin(camPitch), tgt.z + Math.cos(camYaw) * camDist * Math.cos(camPitch));
+    want.x = Math.max(-11.6, Math.min(11.6, want.x)); want.z = Math.max(-31.5, Math.min(31.5, want.z)); want.y = Math.min(15.5, want.y);
+  } else {
+    const a = t * .08; want = new THREE.Vector3(Math.sin(a) * 6, 5.5, 14 + Math.cos(a) * 6);
+  }
+  if (snapCam) { camPos.copy(want); look3.copy(tgt); snapCam = false; }
+  camPos.lerp(want, Math.min(1, dt * 6)); look3.lerp(tgt, Math.min(1, dt * 8));
+  camera.position.copy(camPos); camera.lookAt(look3);
+  renderer.render(scene, camera);
+  if (!started && pAv) { pAv.g.rotation.y = Math.sin(t * .8) * .6; pose(pAv, dt, t, false, false); pr.render(pScene, pCam); }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+})();
+</script>
+
+</body>
+</html>
